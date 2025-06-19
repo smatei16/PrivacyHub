@@ -1,0 +1,67 @@
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f7f9fa;
+    margin: 0;
+    padding: 0;
+    min-width: 320px;
+    min-height: 260px;
+}
+
+.container {
+    padding: 20px;
+}
+
+h2 {
+    color: #2d3a4b;
+    margin-top: 0;
+    margin-bottom: 16px;
+    font-size: 1.3em;
+    text-align: center;
+}
+
+h3 {
+    color: #4a5a6a;
+    margin-bottom: 8px;
+    margin-top: 18px;
+    font-size: 1.1em;
+}
+
+.status {
+    color: #888;
+    text-align: center;
+    margin-bottom: 18px;
+}
+
+.summary {
+    margin-top: 10px;
+}
+
+ul {
+    list-style: disc inside;
+    margin: 0 0 10px 0;
+    padding: 0 0 0 16px;
+}
+
+li {
+    margin-bottom: 6px;
+    color: #333;
+}
+
+.no-policy {
+    color: #b00;
+    text-align: center;
+    margin-top: 30px;
+    font-size: 1em;
+}
+
+.hidden {
+    display: none;
+}
+
+.domain {
+    text-align: center;
+    font-size: 1em;
+    color: #4a5a6a;
+    margin-bottom: 10px;
+    word-break: break-all;
+}
