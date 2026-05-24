@@ -1,26 +1,149 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Privacy Policy Summary</title>
-    <link rel="stylesheet" href="popup.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrivacyHub</title>
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-    <div class="container">
-        <h2>Privacy Policy Summary</h2>
-        <div id="domain" class="domain"></div>
-        <div id="cookie-pref"></div>
-        <div id="status" class="status">Analyzing page...</div>
-        <div id="summary" class="summary hidden">
-            <h3>Data Collected</h3>
-            <ul id="data-list"></ul>
-            <h3>Purposes</h3>
-            <ul id="purpose-list"></ul>
-        </div>
-        <div id="no-policy" class="no-policy hidden">
-            <p>No Privacy Policy or T&C detected on this page.</p>
-        </div>
+  <div class="app">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span>PrivacyHub</span>
+      </div>
+      <button class="icon-btn" id="settingsBtn" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Domain bar -->
+    <div class="domain-bar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;flex-shrink:0">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      <span id="domainText">Loading...</span>
     </div>
-    <script type="text/javascript" src="popup.js"></script>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- Loading state -->
+      <div id="stateLoading" class="state hidden">
+        <div class="spinner"></div>
+        <p class="state-title">Analyzing Privacy Policy</p>
+        <p class="state-sub" id="loadingDetail">Fetching policy pages...</p>
+      </div>
+
+      <!-- No API key -->
+      <div id="stateNoKey" class="state hidden">
+        <div class="state-icon" style="background:#fef3c7">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+          </svg>
+        </div>
+        <p class="state-title">API Key Required</p>
+        <p class="state-sub">Add your Claude API key in Settings to start analyzing privacy policies.</p>
+        <button class="btn btn-primary" id="goToSettingsBtn">Open Settings</button>
+      </div>
+
+      <!-- No policy found -->
+      <div id="stateNone" class="state hidden">
+        <div class="state-icon" style="background:#f1f5f9">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </div>
+        <p class="state-title">No Policy Found</p>
+        <p class="state-sub">No privacy policy or terms of service page was detected for this site.</p>
+      </div>
+
+      <!-- Error state -->
+      <div id="stateError" class="state hidden">
+        <div class="state-icon" style="background:#fee2e2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <p class="state-title">Analysis Failed</p>
+        <p class="state-sub" id="errorDetail">An error occurred.</p>
+        <button class="btn btn-secondary" id="retryBtn">Try Again</button>
+      </div>
+
+      <!-- Ready to analyze -->
+      <div id="stateReady" class="state hidden">
+        <div class="state-icon" style="background:#eff6ff">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <p class="state-title">Policy Pages Found</p>
+        <p class="state-sub" id="policyLinksFound"></p>
+        <button class="btn btn-primary" id="analyzeBtn">Analyze Privacy Policy</button>
+      </div>
+
+      <!-- Results -->
+      <div id="stateResults" class="hidden">
+
+        <!-- Score card -->
+        <section class="score-card">
+          <div class="score-ring" id="scoreRing">
+            <div class="score-inner">
+              <span class="score-num" id="scoreNum">-</span>
+              <span class="score-denom">/10</span>
+            </div>
+          </div>
+          <div class="score-meta">
+            <span class="score-badge" id="scoreBadge"></span>
+            <div class="score-bar">
+              <div class="score-bar-fill" id="scoreBarFill"></div>
+            </div>
+            <p class="score-desc" id="scoreDesc"></p>
+          </div>
+        </section>
+
+        <!-- Summary -->
+        <section class="card">
+          <h3 class="card-label">Summary</h3>
+          <p class="summary-text" id="summaryText"></p>
+        </section>
+
+        <!-- Key concerns -->
+        <section class="card" id="concernsCard">
+          <h3 class="card-label card-label--warn">Key Concerns</h3>
+          <ul class="chip-list" id="concernsList"></ul>
+        </section>
+
+        <!-- Data collected -->
+        <section class="card">
+          <h3 class="card-label">Data Collected</h3>
+          <ul class="chip-list" id="dataList"></ul>
+        </section>
+
+        <!-- Third parties -->
+        <section class="card" id="thirdPartiesCard">
+          <h3 class="card-label">Third Party Vendors</h3>
+          <ul class="vendor-list" id="vendorList"></ul>
+        </section>
+
+        <div class="footer-actions">
+          <button class="btn btn-ghost" id="reanalyzeBtn">Re-analyze</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
 </body>
 </html>

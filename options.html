@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PrivacyHub Settings</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    header {
+      background: #0f172a;
+      color: #fff;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header svg { width: 22px; height: 22px; stroke: #38bdf8; }
+    header h1  { font-size: 17px; font-weight: 600; }
+
+    .page {
+      max-width: 560px;
+      margin: 36px auto;
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .card h2 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #1e293b;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    input[type="password"],
+    input[type="text"] {
+      flex: 1;
+      padding: 9px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: monospace;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      background: #fff;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }
+
+    .toggle-btn {
+      padding: 9px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: #f8fafc;
+      cursor: pointer;
+      font-size: 13px;
+      color: #64748b;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+
+    .toggle-btn:hover { background: #e2e8f0; }
+
+    .hint {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 8px;
+      line-height: 1.6;
+    }
+
+    .hint a { color: #2563eb; text-decoration: none; }
+    .hint a:hover { text-decoration: underline; }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .btn {
+      padding: 9px 18px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+
+    .btn-secondary { background: #f1f5f9; color: #475569; }
+    .btn-secondary:hover { background: #e2e8f0; }
+
+    .btn-danger { background: #fee2e2; color: #991b1b; }
+    .btn-danger:hover { background: #fecaca; }
+
+    .status {
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 7px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .status.success { background: #dcfce7; color: #166534; display: block; }
+    .status.error   { background: #fee2e2; color: #991b1b; display: block; }
+
+    .info-box {
+      background: #f0f9ff;
+      border-left: 4px solid #38bdf8;
+      padding: 12px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #0c4a6e;
+      line-height: 1.65;
+    }
+
+    .steps {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .steps li {
+      display: flex;
+      gap: 10px;
+      font-size: 13px;
+      color: #374151;
+    }
+
+    .step-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </svg>
+    <h1>PrivacyHub Settings</h1>
+  </header>
+
+  <div class="page">
+
+    <!-- API Key -->
+    <div class="card">
+      <h2>Claude API Key</h2>
+      <label for="apiKeyInput">API Key</label>
+      <div class="input-row">
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+        <button class="toggle-btn" id="toggleVisibility" title="Show/hide">👁</button>
+      </div>
+      <p class="hint">
+        Your key is stored locally in your browser and only sent to the
+        <a href="https://api.anthropic.com" target="_blank">Anthropic API</a>.
+        Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="saveBtn">Save Key</button>
+        <button class="btn btn-secondary" id="removeKeyBtn">Remove</button>
+      </div>
+      <div class="status" id="keyStatus"></div>
+    </div>
+
+    <!-- Cache -->
+    <div class="card">
+      <h2>Cached Analyses</h2>
+      <p style="font-size:13px;color:#64748b;line-height:1.6;margin-bottom:4px;">
+        Analysis results are cached per domain so the extension doesn't re-call the API on every visit.
+        Clear the cache to force a fresh analysis on next use.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-danger" id="clearCacheBtn">Clear All Cached Analyses</button>
+      </div>
+      <div class="status" id="cacheStatus"></div>
+    </div>
+
+    <!-- How it works -->
+    <div class="card">
+      <h2>How It Works</h2>
+      <div class="info-box">
+        PrivacyHub scans the current page for links to privacy policy and terms of service pages,
+        fetches their content, and sends it to Claude for analysis. You receive a privacy score,
+        a list of personal data collected, third-party vendors, and a plain-language summary.
+      </div>
+      <ul class="steps">
+        <li>
+          <span class="step-num">1</span>
+          <span>Visit any website — PrivacyHub automatically detects policy links.</span>
+        </li>
+        <li>
+          <span class="step-num">2</span>
+          <span>Click the extension icon and press <strong>Analyze Privacy Policy</strong>.</span>
+        </li>
+        <li>
+          <span class="step-num">3</span>
+          <span>Claude reads the policy and returns a structured privacy assessment in seconds.</span>
+        </li>
+        <li>
+          <span class="step-num">4</span>
+          <span>Results are cached — revisiting the same site shows the result instantly.</span>
+        </li>
+      </ul>
+    </div>
+
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

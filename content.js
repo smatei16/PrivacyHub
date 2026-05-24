@@ -1,181 +1,203 @@
-// POLICY ANALYSIS
+// ── Policy page detection ────────────────────────────────────────────────────
 
-// detect if the current page is a privacy policy or terms of service page
 function isPolicyPage() {
-    const url = window.location.href.toLowerCase();
-    const keywords = ['privacy', 'policy', 'terms', 'conditions', 'tc', 't&c', 'terms of service', 'terms of use', 'user agreement'];
-    return keywords.some(k => url.includes(k));
+  const path = window.location.pathname.toLowerCase();
+  const keywords = [
+    // English
+    "privacy", "policy", "terms", "conditions", "tos",
+    "terms-of-service", "terms-of-use", "user-agreement", "legal", "tc",
+    // French
+    "confidentialite", "politique-de-confidentialite", "mentions-legales",
+    "conditions-utilisation", "conditions-generales",
+    // German
+    "datenschutz", "nutzungsbedingungen", "impressum", "agb",
+    // Spanish
+    "privacidad", "politica-de-privacidad", "terminos", "aviso-legal",
+    "condiciones-de-uso",
+    // Romanian
+    "confidentialitate", "politica-de-confidentialitate", "termeni",
+    "conditii", "nota-de-informare",
+    // Portuguese
+    "privacidade", "politica-de-privacidade", "termos-de-uso",
+    "termos-e-condicoes", "aviso-legal"
+  ];
+  return keywords.some(k => path.includes(k));
 }
 
-// Find all links that likely point to privacy policies or terms of service
 function findPolicyLinks() {
-    const keywords = [
-        'privacy', 'policy', 'terms', 'conditions', 'tc', 't&c',
-        'terms of service', 'terms of use', 'user agreement'
-    ];
-    const anchors = Array.from(document.querySelectorAll('a[href]'));
-    const matches = anchors.filter(a => {
-        const text = a.textContent.toLowerCase();
-        return keywords.some(k => text.includes(k));
-    });
-    const urls = [...new Set(matches.map(a => a.href))];
-    return urls;
-}
+  const textKeywords = [
+    // English
+    "privacy policy", "privacy notice", "data policy", "data protection",
+    "terms of service", "terms of use", "terms and conditions",
+    "terms & conditions", "t&c", "user agreement", "legal notice", "cookie policy",
+    // French
+    "politique de confidentialité", "politique de confidentialite",
+    "avis de confidentialité", "protection des données", "protection des donnees",
+    "conditions d'utilisation", "conditions générales", "conditions generales",
+    "mentions légales", "mentions legales", "charte de confidentialité",
+    // German
+    "datenschutzerklärung", "datenschutzerklarung", "datenschutzrichtlinie",
+    "nutzungsbedingungen", "allgemeine geschäftsbedingungen", "impressum",
+    "cookie-richtlinie", "datenverarbeitung",
+    // Spanish
+    "política de privacidad", "politica de privacidad",
+    "aviso de privacidad", "protección de datos", "proteccion de datos",
+    "términos de servicio", "terminos de servicio",
+    "términos y condiciones", "terminos y condiciones",
+    "aviso legal", "política de cookies", "politica de cookies",
+    // Romanian
+    "politică de confidențialitate", "politica de confidentialitate",
+    "notă de informare", "nota de informare", "protecția datelor",
+    "termeni și condiții", "termeni si conditii", "termeni de utilizare",
+    "politica de cookie", "acord de utilizare",
+    // Portuguese
+    "política de privacidade", "politica de privacidade",
+    "aviso de privacidade", "proteção de dados", "protecao de dados",
+    "termos de serviço", "termos de servico", "termos e condições",
+    "termos e condicoes", "aviso legal", "política de cookies"
+  ];
+  const urlKeywords = [
+    // English
+    "privacy", "terms", "tos", "legal", "policy", "conditions",
+    // French
+    "confidentialite", "mentions-legales", "conditions-utilisation",
+    // German
+    "datenschutz", "nutzungsbedingungen", "impressum",
+    // Spanish
+    "privacidad", "terminos", "aviso-legal",
+    // Romanian
+    "confidentialitate", "termeni",
+    // Portuguese
+    "privacidade", "termos"
+  ];
 
-// Try to find policy links if not on a policy page
-if (!isPolicyPage()) {
-    const policyLinks = findPolicyLinks();
-    console.log(policyLinks);
-    if (policyLinks.length > 0) {
-        // Fetch the policy page, extract text, and send to background
-        fetch(policyLinks[0])
-            .then(res => res.text())
-            .then(html => {
-                const doc = new DOMParser().parseFromString(html, "text/html");
-                const text = doc.body ? doc.body.innerText : '';
-                chrome.runtime.sendMessage({
-                    type: "POLICY_DETECTED",
-                    text: text,
-                    sourceUrl: window.location.href
-                }, (summary) => {
-                    if (summary && summary.found) {
-                        showOverlay(summary);
-                    }
-                });
-            })
-            .catch(e => {
-                console.warn("Could not fetch or parse policy page:", e);
-            });
+  const seen = new Map();
+
+  for (const anchor of document.querySelectorAll("a[href]")) {
+    const href = anchor.href;
+    if (!href || href.startsWith("javascript:") || href === "#") continue;
+
+    try {
+      const linkUrl  = new URL(href);
+      const linkPath = linkUrl.pathname.toLowerCase();
+      const linkText = anchor.textContent.trim().toLowerCase();
+
+      const byText = textKeywords.some(k => linkText.includes(k));
+      const byUrl  = urlKeywords.some(k => linkPath.includes(k));
+
+      if ((byText || byUrl) && !seen.has(href)) {
+        seen.set(href, true);
+      }
+    } catch {
+      // skip malformed URLs
     }
-} else {
-    const policyText = document.body.innerText
-    // Send to background or popup for NLP processing
+  }
+
+  return Array.from(seen.keys());
+}
+
+// ── Message handler (popup asks for links) ───────────────────────────────────
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "GET_POLICY_LINKS") {
+    const links = isPolicyPage()
+      ? [window.location.href]
+      : findPolicyLinks();
+    sendResponse({ links });
+    return true;
+  }
+  return true;
+});
+
+// ── Auto-detect on page load ──────────────────────────────────────────────────
+
+(function autoDetect() {
+  const links = isPolicyPage()
+    ? [window.location.href]
+    : findPolicyLinks();
+
+  if (links.length > 0) {
     chrome.runtime.sendMessage({
-        type: "POLICY_DETECTED",
-        text: policyText,
-        url: window.location.href
-    }, (summary) => {
-        if (summary && summary.found) {
-            showOverlay(summary);
-        }
+      type: "POLICY_LINKS_FOUND",
+      domain: window.location.hostname,
+      links
     });
-}
+  }
+})();
 
 
-// Show overlay with summary of privacy policy
-function showOverlay(summary) {
-    // Remove existing overlay if present
-    const old = document.getElementById('privacy-hub-overlay');
-    if (old) old.remove();
+// ── Cookie banner detection (v1 feature, preserved) ──────────────────────────
 
-    const overlay = document.createElement('div');
-    overlay.id = 'privacy-hub-overlay';
-    overlay.style.position = 'fixed';
-    overlay.style.bottom = '20px';
-    overlay.style.right = '20px';
-    overlay.style.zIndex = '999999';
-    overlay.style.background = '#fff';
-    overlay.style.border = '1px solid #ccc';
-    overlay.style.borderRadius = '8px';
-    overlay.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-    overlay.style.padding = '16px 20px';
-    overlay.style.maxWidth = '320px';
-    overlay.style.fontFamily = 'Segoe UI, Arial, sans-serif';
-    overlay.style.fontSize = '14px';
-    overlay.style.color = '#222';
-
-    overlay.innerHTML = `
-        <strong>Privacy Policy Summary</strong>
-        <div style="margin-top:8px;">
-            <b>Data Collected:</b>
-            <ul style="margin:4px 0 8px 16px;padding:0;">
-                ${summary.dataCollected.map(item => `<li>${item}</li>`).join('')}
-            </ul>
-            <b>Purposes:</b>
-            <ul style="margin:4px 0 0 16px;padding:0;">
-                ${summary.purposes.map(item => `<li>${item}</li>`).join('')}
-            </ul>
-        </div>
-        <button id="privacy-hub-close" style="margin-top:10px;float:right;background:#eee;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Close</button>
-    `;
-
-    document.body.appendChild(overlay);
-
-    document.getElementById('privacy-hub-close').onclick = () => overlay.remove();
-}
-
-
-// COOKIE BANNER DETECTION
-
-// Detect cookie consent buttons based on common keywords
 function findConsentButtonsByText() {
-    const keywords = [
-        'accept all', 'accept', 'agree',
-        'reject all', 'reject', 'refuse', 'decline',
-        'preferences', 'settings', 'customize'
-    ];
+  const keywords = [
+    // English
+    "accept all", "accept", "agree",
+    "reject all", "reject", "refuse", "decline",
+    "preferences", "settings", "customize",
+    // French
+    "tout accepter", "accepter", "accepter tout", "j'accepte",
+    "tout refuser", "refuser", "paramètres", "parametres", "personnaliser",
+    // German
+    "alle akzeptieren", "akzeptieren", "zustimmen",
+    "alle ablehnen", "ablehnen", "einstellungen", "anpassen",
+    // Spanish
+    "aceptar todo", "aceptar", "aceptar todas",
+    "rechazar todo", "rechazar", "configuración", "configuracion", "personalizar",
+    // Romanian
+    "acceptă tot", "accepta tot", "acceptă", "accepta", "sunt de acord",
+    "refuz tot", "refuza tot", "refuză", "refuza", "setări", "setari", "personalizează",
+    // Portuguese
+    "aceitar tudo", "aceitar", "concordar",
+    "rejeitar tudo", "rejeitar", "recusar", "preferências", "preferencias", "personalizar"
+  ];
 
-    const elements = Array.from(document.querySelectorAll("button, input[type='button'], a, div"))
-        .filter(el => {
-            const text = el.textContent.trim().toLowerCase();
-            return text.length > 0 && keywords.some(k => text.includes(k));
-        });
-
-    // Returnează sub formă de selector și label
-    return elements.map(el => ({
-        selector: generateUniqueSelector(el),
-        label: el.textContent.trim()
+  return Array.from(document.querySelectorAll("button, input[type='button'], a, div"))
+    .filter(el => {
+      const text = el.textContent.trim().toLowerCase();
+      return text.length > 0 && text.length < 60 && keywords.some(k => text === k || text.startsWith(k));
+    })
+    .map(el => ({
+      selector: generateUniqueSelector(el),
+      label: el.textContent.trim()
     }));
 }
 
-
-// Cookie Banner Handling
-chrome.runtime.sendMessage({ type: "GET_COOKIE_CHOICE", url: window.location.href }, (response) => {
-    const choice = response?.choice;
-    if (choice?.selector) {
-        const btn = document.querySelector(choice.selector);
-        if (btn) {
-            console.log("Saved cookie preference:", choice.label);
-        }
-    } else {
-        const buttonData = findConsentButtonsByText();
-        console.log(buttonData);
-        chrome.runtime.sendMessage({
-            type: "COOKIE_BANNER_DETECTED",
-            url: window.location.href,
-            buttons: buttonData
-        });
+function generateUniqueSelector(el) {
+  if (!el) return null;
+  if (el.id) return `#${CSS.escape(el.id)}`;
+  if (el.className && typeof el.className === "string") {
+    const classes = el.className.trim().split(/\s+/).filter(Boolean);
+    if (classes.length > 0) {
+      return `${el.tagName.toLowerCase()}.${classes.map(c => CSS.escape(c)).join(".")}`;
     }
+  }
+  return el.tagName.toLowerCase();
+}
+
+chrome.runtime.sendMessage({ type: "GET_COOKIE_CHOICE", url: window.location.href }, (response) => {
+  if (!response?.choice?.selector) {
+    const buttonData = findConsentButtonsByText();
+    if (buttonData.length > 0) {
+      chrome.runtime.sendMessage({
+        type: "COOKIE_BANNER_DETECTED",
+        url: window.location.href,
+        buttons: buttonData
+      });
+    }
+  }
 });
 
-// Listen for clicks on detected consent buttons and save the user's choice
-document.addEventListener('click', function (e) {
-    const buttonData = findConsentButtonsByText();
-    const clickedEl = e.target;
-    const match = buttonData.find(btn => {
-        try {
-            return clickedEl.matches(btn.selector);
-        } catch {
-            return false;
-        }
+document.addEventListener("click", function(e) {
+  const buttonData = findConsentButtonsByText();
+  const match = buttonData.find(btn => {
+    try { return e.target.matches(btn.selector); } catch { return false; }
+  });
+  if (match) {
+    chrome.runtime.sendMessage({
+      type: "SAVE_COOKIE_CHOICE",
+      url: window.location.href,
+      selector: match.selector,
+      label: match.label
     });
-    if (match) {
-        chrome.runtime.sendMessage({
-            type: "SAVE_COOKIE_CHOICE",
-            url: window.location.href,
-            selector: match.selector,
-            label: match.label
-        });
-    }
+  }
 }, true);
-
-// Generate a unique selector for an element
-function generateUniqueSelector(el) {
-    if (!el) return null;
-    if (el.id) return `#${el.id}`;
-    if (el.className) {
-        const classSelector = el.className.toString().split(" ").map(cls => `.${cls}`).join("");
-        return `${el.tagName.toLowerCase()}${classSelector}`;
-    }
-    return el.tagName.toLowerCase();
-}
