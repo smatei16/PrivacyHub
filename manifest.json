@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Privacy Policy Detector",
-  "version": "1.0",
-  "description": "Detects T&C/Privacy Policy pages and summarizes data collection using NLP.",
+  "name": "PrivacyHub",
+  "version": "2.0",
+  "description": "Analyzes website privacy policies using Claude AI and rates them with a privacy score.",
   "permissions": ["scripting", "activeTab", "storage"],
   "background": {
     "service_worker": "background.js"
@@ -15,6 +15,11 @@
     }
   ],
   "host_permissions": ["<all_urls>"],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -22,5 +27,6 @@
       "48": "icon48.png",
       "128": "icon128.png"
     }
-  }
+  },
+  "options_page": "options.html"
 }
