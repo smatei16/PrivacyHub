@@ -141,6 +141,59 @@
         </div>
 
       </div>
+
+      <!-- ── HIBP Data Breach Check ─────────────────────────────────────── -->
+      <div id="hibpSection" class="card hidden">
+        <h3 class="card-label card-label--breach">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hibp-label-icon"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Data Breach Check
+        </h3>
+
+        <!-- Loading -->
+        <div id="hibpLoading" class="hibp-inline-row">
+          <div class="hibp-mini-spinner"></div>
+          <span class="hibp-inline-text">Checking breach database…</span>
+        </div>
+
+        <!-- No HIBP key configured -->
+        <div id="hibpNoKey" class="hibp-inline-row hidden">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span class="hibp-inline-text"><button class="hibp-link-btn" id="hibpSettingsBtn">Add an HIBP API key</button> in Settings to enable breach detection.</span>
+        </div>
+
+        <!-- Error -->
+        <div id="hibpError" class="hibp-inline-row hidden">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span class="hibp-inline-text" id="hibpErrorMsg">Could not check breach database.</span>
+        </div>
+
+        <!-- Safe — no breaches -->
+        <div id="hibpSafe" class="hibp-safe-row hidden">
+          <div class="hibp-indicator hibp-indicator--safe">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div>
+            <p class="hibp-result-title">No known breaches</p>
+            <p class="hibp-result-sub">This domain has no data breaches in HIBP.</p>
+          </div>
+        </div>
+
+        <!-- Breaches found -->
+        <div id="hibpBreaches" class="hidden">
+          <div class="hibp-alert" id="hibpAlert">
+            <div class="hibp-alert-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="hibp-alert-body">
+              <p class="hibp-alert-title" id="hibpAlertTitle"></p>
+              <p class="hibp-alert-sub" id="hibpAlertSub"></p>
+            </div>
+          </div>
+          <div class="hibp-breach-list" id="hibpBreachList"></div>
+          <button class="btn btn-ghost hibp-show-more hidden" id="hibpShowMore"></button>
+        </div>
+      </div>
+
     </div>
   </div>
 

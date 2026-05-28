@@ -3,18 +3,22 @@ const toggleVisBtn   = document.getElementById("toggleVisibility");
 const saveBtn        = document.getElementById("saveBtn");
 const removeKeyBtn   = document.getElementById("removeKeyBtn");
 const keyStatus      = document.getElementById("keyStatus");
+const hibpKeyInput   = document.getElementById("hibpKeyInput");
+const hibpToggleBtn  = document.getElementById("hibpToggleVisibility");
+const hibpSaveBtn    = document.getElementById("hibpSaveBtn");
+const hibpRemoveBtn  = document.getElementById("hibpRemoveBtn");
+const hibpKeyStatus  = document.getElementById("hibpKeyStatus");
 const clearCacheBtn  = document.getElementById("clearCacheBtn");
 const cacheStatus    = document.getElementById("cacheStatus");
 
-// ── Load existing key ────────────────────────────────────────────────────────
+// ── Load existing keys ───────────────────────────────────────────────────────
 
-chrome.storage.local.get("claudeApiKey", (data) => {
-  if (data.claudeApiKey) {
-    apiKeyInput.value = data.claudeApiKey;
-  }
+chrome.storage.local.get(["claudeApiKey", "hibpApiKey"], (data) => {
+  if (data.claudeApiKey) apiKeyInput.value  = data.claudeApiKey;
+  if (data.hibpApiKey)   hibpKeyInput.value = data.hibpApiKey;
 });
 
-// ── Toggle visibility ────────────────────────────────────────────────────────
+// ── Claude key — toggle visibility ──────────────────────────────────────────
 
 toggleVisBtn.addEventListener("click", () => {
   const isPassword = apiKeyInput.type === "password";
@@ -22,7 +26,7 @@ toggleVisBtn.addEventListener("click", () => {
   toggleVisBtn.textContent = isPassword ? "🙈" : "👁";
 });
 
-// ── Save key ─────────────────────────────────────────────────────────────────
+// ── Claude key — save ────────────────────────────────────────────────────────
 
 saveBtn.addEventListener("click", () => {
   const key = apiKeyInput.value.trim();
@@ -39,7 +43,7 @@ saveBtn.addEventListener("click", () => {
   });
 });
 
-// ── Remove key ───────────────────────────────────────────────────────────────
+// ── Claude key — remove ──────────────────────────────────────────────────────
 
 removeKeyBtn.addEventListener("click", () => {
   apiKeyInput.value = "";
@@ -48,19 +52,61 @@ removeKeyBtn.addEventListener("click", () => {
   });
 });
 
+// ── HIBP key — toggle visibility ─────────────────────────────────────────────
+
+hibpToggleBtn.addEventListener("click", () => {
+  const isPassword = hibpKeyInput.type === "password";
+  hibpKeyInput.type = isPassword ? "text" : "password";
+  hibpToggleBtn.textContent = isPassword ? "🙈" : "👁";
+});
+
+// ── HIBP key — save ──────────────────────────────────────────────────────────
+
+hibpSaveBtn.addEventListener("click", () => {
+  const key = hibpKeyInput.value.trim();
+  if (!key) {
+    flashStatus(hibpKeyStatus, "Please enter an API key.", "error");
+    return;
+  }
+  // HIBP keys are UUID-format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(key)) {
+    flashStatus(hibpKeyStatus, "Key doesn't match the expected UUID format — double-check it and save anyway?", "error");
+    // Still allow saving in case the format changes; just warn.
+  }
+  chrome.storage.local.set({ hibpApiKey: key }, () => {
+    flashStatus(hibpKeyStatus, "HIBP API key saved.", "success");
+  });
+});
+
+// ── HIBP key — remove ────────────────────────────────────────────────────────
+
+hibpRemoveBtn.addEventListener("click", () => {
+  hibpKeyInput.value = "";
+  chrome.storage.local.remove("hibpApiKey", () => {
+    flashStatus(hibpKeyStatus, "HIBP API key removed.", "success");
+  });
+});
+
 // ── Clear cache ───────────────────────────────────────────────────────────────
 
 clearCacheBtn.addEventListener("click", () => {
   chrome.storage.local.get(null, (allData) => {
     const toRemove = Object.keys(allData).filter(k =>
-      k.startsWith("analysis_") || k.startsWith("status_") || k.startsWith("links_")
+      k.startsWith("analysis_") || k.startsWith("status_") ||
+      k.startsWith("links_")    || k.startsWith("hibp_")
     );
     if (toRemove.length === 0) {
-      flashStatus(cacheStatus, "No cached analyses to clear.", "success");
+      flashStatus(cacheStatus, "No cached data to clear.", "success");
       return;
     }
     chrome.storage.local.remove(toRemove, () => {
-      flashStatus(cacheStatus, `Cleared analyses for ${toRemove.filter(k => k.startsWith("analysis_")).length} domain(s).`, "success");
+      const analyses = toRemove.filter(k => k.startsWith("analysis_")).length;
+      const breaches = toRemove.filter(k => k.startsWith("hibp_")).length;
+      const parts = [];
+      if (analyses) parts.push(`${analyses} privacy analysis${analyses > 1 ? "es" : ""}`);
+      if (breaches) parts.push(`${breaches} breach cache${breaches > 1 ? "s" : ""}`);
+      flashStatus(cacheStatus, `Cleared: ${parts.join(" and ")}.`, "success");
     });
   });
 });

@@ -107,6 +107,51 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // ── HIBP data breach check ───────────────────────────────────────────────────
+  if (message.type === "CHECK_HIBP") {
+    const { domain } = message;
+    const HIBP_TTL  = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    (async () => {
+      try {
+        const cacheKey = `hibp_${domain}`;
+        const stored   = await new Promise(r => chrome.storage.local.get([cacheKey, "hibpApiKey"], r));
+        const apiKey   = stored.hibpApiKey;
+
+        if (!apiKey) { sendResponse({ status: "no_key" }); return; }
+
+        const cached = stored[cacheKey];
+        if (cached && (Date.now() - cached.fetchedAt) < HIBP_TTL) {
+          sendResponse({ status: "done", breaches: cached.breaches });
+          return;
+        }
+
+        const rootDomain = getRootDomain(domain);
+        const res = await fetch(
+          `https://haveibeenpwned.com/api/v3/breaches?domain=${encodeURIComponent(rootDomain)}`,
+          { headers: { "hibp-api-key": apiKey, "user-agent": "PrivacyHub/2.0" } }
+        );
+
+        if (res.status === 401) {
+          sendResponse({ status: "error", message: "Invalid HIBP API key." });
+          return;
+        }
+        if (!res.ok && res.status !== 404) {
+          sendResponse({ status: "error", message: `HIBP API returned ${res.status}.` });
+          return;
+        }
+
+        const breaches = res.ok ? await res.json() : [];
+        chrome.storage.local.set({ [cacheKey]: { breaches, fetchedAt: Date.now() } });
+        sendResponse({ status: "done", breaches });
+      } catch (err) {
+        sendResponse({ status: "error", message: err.message });
+      }
+    })();
+
+    return true;
+  }
+
   return true;
 });
 
@@ -204,6 +249,15 @@ ${policyText}`;
   const rawText = data.content?.[0]?.text || "";
 
   return parseAndValidate(rawText);
+}
+
+function getRootDomain(hostname) {
+  const parts = hostname.split(".");
+  if (parts.length <= 2) return hostname;
+  // Treat common second-level segments (co, com, net…) as part of the TLD
+  const secondLevelTLDs = new Set(["co", "com", "net", "org", "gov", "edu", "ac"]);
+  if (secondLevelTLDs.has(parts[parts.length - 2])) return parts.slice(-3).join(".");
+  return parts.slice(-2).join(".");
 }
 
 function parseAndValidate(text) {
