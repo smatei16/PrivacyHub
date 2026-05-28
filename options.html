@@ -212,12 +212,35 @@
       <div class="status" id="keyStatus"></div>
     </div>
 
+    <!-- HIBP API Key -->
+    <div class="card">
+      <h2>HaveIBeenPwned API Key</h2>
+      <label for="hibpKeyInput">API Key</label>
+      <div class="input-row">
+        <input type="password" id="hibpKeyInput" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+        <button class="toggle-btn" id="hibpToggleVisibility" title="Show/hide">👁</button>
+      </div>
+      <p class="hint">
+        Stored locally and only sent to
+        <a href="https://haveibeenpwned.com" target="_blank">haveibeenpwned.com</a>.
+        Get a Core subscription key at
+        <a href="https://haveibeenpwned.com/API/Key" target="_blank">haveibeenpwned.com/API/Key</a>.
+        The Core plan is sufficient — email lookup is not required.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-primary"   id="hibpSaveBtn">Save Key</button>
+        <button class="btn btn-secondary" id="hibpRemoveBtn">Remove</button>
+      </div>
+      <div class="status" id="hibpKeyStatus"></div>
+    </div>
+
     <!-- Cache -->
     <div class="card">
       <h2>Cached Analyses</h2>
       <p style="font-size:13px;color:#64748b;line-height:1.6;margin-bottom:4px;">
-        Analysis results are cached per domain so the extension doesn't re-call the API on every visit.
-        Clear the cache to force a fresh analysis on next use.
+        Privacy policy analyses and breach check results are cached per domain.
+        Breach results are refreshed automatically after 7 days.
+        Clear the cache to force a fresh analysis or breach check on next use.
       </p>
       <div class="btn-row">
         <button class="btn btn-danger" id="clearCacheBtn">Clear All Cached Analyses</button>
@@ -236,19 +259,19 @@
       <ul class="steps">
         <li>
           <span class="step-num">1</span>
-          <span>Visit any website — PrivacyHub automatically detects policy links.</span>
+          <span>Visit any website — PrivacyHub automatically detects policy links and checks HIBP for data breaches.</span>
         </li>
         <li>
           <span class="step-num">2</span>
-          <span>Click the extension icon and press <strong>Analyze Privacy Policy</strong>.</span>
+          <span>The <strong>Data Breach Check</strong> section shows instantly: green if safe, red/amber if the site has known breaches with affected data types and a password recommendation.</span>
         </li>
         <li>
           <span class="step-num">3</span>
-          <span>Claude reads the policy and returns a structured privacy assessment in seconds.</span>
+          <span>Click the extension icon and press <strong>Analyze Privacy Policy</strong> to get an AI-powered privacy score, summary, and vendor list.</span>
         </li>
         <li>
           <span class="step-num">4</span>
-          <span>Results are cached — revisiting the same site shows the result instantly.</span>
+          <span>All results are cached — revisiting the same site shows results instantly. Breach data refreshes after 7 days.</span>
         </li>
       </ul>
     </div>

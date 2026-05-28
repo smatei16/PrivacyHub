@@ -226,6 +226,160 @@ function triggerAnalysis() {
   );
 }
 
+// ── HIBP Breach Check ────────────────────────────────────────────────────────
+
+const HIBP_STATES = ["hibpLoading", "hibpNoKey", "hibpError", "hibpSafe", "hibpBreaches"];
+
+function showHibpState(id) {
+  HIBP_STATES.forEach(sid =>
+    document.getElementById(sid).classList.toggle("hidden", sid !== id)
+  );
+}
+
+const HIGH_SEVERITY_DATA = new Set([
+  "Passwords", "Credit cards", "Credit card CVV", "Credit card numbers",
+  "Financial data", "Bank account numbers", "Social security numbers",
+  "Health insurance information", "Medical records", "Private messages",
+  "Auth tokens", "Government issued IDs", "Partial credit card data",
+  "Security questions and answers"
+]);
+
+const MEDIUM_SEVERITY_DATA = new Set([
+  "Email addresses", "Phone numbers", "Physical addresses",
+  "Dates of birth", "IP addresses", "Usernames", "Geographic locations"
+]);
+
+function dataChipClass(dataClass) {
+  if (HIGH_SEVERITY_DATA.has(dataClass)) return "chip chip--danger";
+  if (MEDIUM_SEVERITY_DATA.has(dataClass)) return "chip chip--warn";
+  return "chip";
+}
+
+function breachSeverity(breaches) {
+  const mostRecent = breaches.reduce((a, b) =>
+    new Date(a.BreachDate) > new Date(b.BreachDate) ? a : b
+  );
+  const ageYears = (Date.now() - new Date(mostRecent.BreachDate)) / (365.25 * 24 * 60 * 60 * 1000);
+  if (ageYears < 2) return "critical";
+  if (ageYears < 5) return "warning";
+  return "old";
+}
+
+function cardSeverity(breachDate) {
+  const ageYears = (Date.now() - new Date(breachDate)) / (365.25 * 24 * 60 * 60 * 1000);
+  if (ageYears < 2) return "critical";
+  if (ageYears < 5) return "warning";
+  return "old";
+}
+
+function formatBreachDate(dateStr) {
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+function formatCount(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `${Math.round(n / 1_000)}K`;
+  return n.toString();
+}
+
+function renderHIBP(breaches) {
+  if (!breaches.length) {
+    showHibpState("hibpSafe");
+    return;
+  }
+
+  const sev = breachSeverity(breaches);
+  const mostRecent = breaches.reduce((a, b) =>
+    new Date(a.BreachDate) > new Date(b.BreachDate) ? a : b
+  );
+  const lastDate = formatBreachDate(mostRecent.BreachDate);
+  const count    = breaches.length;
+  const plural   = count > 1 ? "es" : "";
+
+  document.getElementById("hibpAlert").className = `hibp-alert hibp-alert--${sev}`;
+
+  const titles = {
+    critical: `${count} breach${plural} found — recent`,
+    warning:  `${count} breach${plural} found`,
+    old:      `${count} old breach${plural} found`
+  };
+  const subs = {
+    critical: `Last breach: ${lastDate}. If you have an account here, change your password now.`,
+    warning:  `Last breach: ${lastDate}. Consider updating your password on this site.`,
+    old:      `Last breach: ${lastDate}. Credentials from this site may be outdated.`
+  };
+
+  document.getElementById("hibpAlertTitle").textContent = titles[sev];
+  document.getElementById("hibpAlertSub").textContent   = subs[sev];
+
+  // Sort by most recent first
+  const sorted = [...breaches].sort((a, b) => new Date(b.BreachDate) - new Date(a.BreachDate));
+
+  const listEl  = document.getElementById("hibpBreachList");
+  listEl.innerHTML = "";
+
+  const MAX_VISIBLE = 3;
+
+  sorted.forEach((breach, i) => {
+    const csev  = cardSeverity(breach.BreachDate);
+    const card  = document.createElement("div");
+    card.className = `hibp-breach-card hibp-breach-card--${csev}${i >= MAX_VISIBLE ? " hidden hibp-extra" : ""}`;
+
+    const badges = [];
+    if (breach.IsSensitive)           badges.push(`<span class="hibp-badge hibp-badge--sensitive">Sensitive</span>`);
+    if (breach.IsVerified === false)   badges.push(`<span class="hibp-badge hibp-badge--unverified">Unverified</span>`);
+
+    const chipsHtml = (breach.DataClasses || [])
+      .map(dc => `<span class="${esc(dataChipClass(dc))}">${esc(dc)}</span>`)
+      .join("");
+
+    card.innerHTML = `
+      <div class="hibp-breach-header">
+        <span class="hibp-breach-name">${esc(breach.Title || breach.Name)}</span>
+        <span class="hibp-breach-date">${formatBreachDate(breach.BreachDate)}</span>
+      </div>
+      <p class="hibp-breach-meta">${formatCount(breach.PwnCount)} accounts affected</p>
+      <div class="hibp-breach-chips">${chipsHtml}</div>
+      ${badges.length ? `<div class="hibp-breach-badges">${badges.join("")}</div>` : ""}
+    `;
+    listEl.appendChild(card);
+  });
+
+  const showMoreBtn = document.getElementById("hibpShowMore");
+  if (sorted.length > MAX_VISIBLE) {
+    const remaining = sorted.length - MAX_VISIBLE;
+    showMoreBtn.textContent = `Show ${remaining} more breach${remaining > 1 ? "es" : ""}`;
+    showMoreBtn.classList.remove("hidden");
+  } else {
+    showMoreBtn.classList.add("hidden");
+  }
+
+  showHibpState("hibpBreaches");
+}
+
+function checkHIBP() {
+  showHibpState("hibpLoading");
+  chrome.runtime.sendMessage({ type: "CHECK_HIBP", domain: currentDomain }, (resp) => {
+    if (chrome.runtime.lastError || !resp) {
+      showHibpState("hibpError");
+      document.getElementById("hibpErrorMsg").textContent = "Could not reach extension background.";
+      return;
+    }
+    switch (resp.status) {
+      case "no_key":
+        showHibpState("hibpNoKey");
+        break;
+      case "done":
+        renderHIBP(resp.breaches);
+        break;
+      case "error":
+        showHibpState("hibpError");
+        document.getElementById("hibpErrorMsg").textContent = resp.message || "Could not check breach database.";
+        break;
+    }
+  });
+}
+
 // ── Initialization ───────────────────────────────────────────────────────────
 
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -243,6 +397,10 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     showState("stateNone");
     return;
   }
+
+  // Show HIBP section and start breach check immediately
+  document.getElementById("hibpSection").classList.remove("hidden");
+  checkHIBP();
 
   // Check API key first
   chrome.storage.local.get("claudeApiKey", (data) => {
@@ -292,4 +450,13 @@ document.getElementById("settingsBtn").addEventListener("click", () => {
 
 document.getElementById("goToSettingsBtn").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
+});
+
+document.getElementById("hibpSettingsBtn").addEventListener("click", () => {
+  chrome.runtime.openOptionsPage();
+});
+
+document.getElementById("hibpShowMore").addEventListener("click", () => {
+  document.querySelectorAll(".hibp-extra").forEach(el => el.classList.remove("hidden"));
+  document.getElementById("hibpShowMore").classList.add("hidden");
 });
