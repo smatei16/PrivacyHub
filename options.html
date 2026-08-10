@@ -179,6 +179,67 @@
       justify-content: center;
       flex-shrink: 0;
     }
+
+    .setting-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .setting-row + .setting-row {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    .setting-text { flex: 1; }
+
+    .setting-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: #1e293b;
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    /* Toggle switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .switch input { opacity: 0; width: 0; height: 0; }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #cbd5e1;
+      border-radius: 22px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .switch input:checked + .slider            { background: #2563eb; }
+    .switch input:checked + .slider::before   { transform: translateX(18px); }
+    .switch input:focus-visible + .slider      { outline: 2px solid #3b82f6; outline-offset: 2px; }
   </style>
 </head>
 <body>
@@ -234,6 +295,27 @@
       <div class="status" id="hibpKeyStatus"></div>
     </div>
 
+    <!-- Cookie Preferences -->
+    <div class="card">
+      <h2>Cookie Preferences</h2>
+      <div class="setting-row">
+        <div class="setting-text">
+          <span class="setting-label">Auto-reject cookie banners</span>
+          <p class="hint" style="margin:0">
+            When enabled, PrivacyHub automatically clicks the "Reject All" or "Necessary Only"
+            button on cookie consent banners. If a banner offers no way to decline at all -
+            just an "OK"/"Accept" - it's dismissed the same way instead, since there's no privacy-preserving option
+            to give up. Only standard in-page banners are handled; cross-origin iframe banners are not
+            supported in this version.
+          </p>
+        </div>
+        <label class="switch" title="Auto-reject cookie banners">
+          <input type="checkbox" id="autoRejectToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
     <!-- Cache -->
     <div class="card">
       <h2>Cached Analyses</h2>
@@ -241,6 +323,8 @@
         Privacy policy analyses and breach check results are cached per domain.
         Breach results are refreshed automatically after 7 days.
         Clear the cache to force a fresh analysis or breach check on next use.
+        This also resets any remembered cookie-banner choices, so auto-reject
+        will try again on domains where it previously stopped.
       </p>
       <div class="btn-row">
         <button class="btn btn-danger" id="clearCacheBtn">Clear All Cached Analyses</button>
@@ -253,7 +337,7 @@
       <h2>How It Works</h2>
       <div class="info-box">
         PrivacyHub scans the current page for links to privacy policy and terms of service pages,
-        fetches their content, and sends it to Claude for analysis. You receive a privacy score,
+        fetches their content, and sends it to Claude API for analysis. You receive a privacy score,
         a list of personal data collected, third-party vendors, and a plain-language summary.
       </div>
       <ul class="steps">
