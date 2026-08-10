@@ -101,7 +101,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.storage.local.get(["cookie_choices"], (data) => {
       const choices = data.cookie_choices || {};
       if (!choices[domain]) choices[domain] = {};
-      choices[domain].selected = { selector: message.selector, label: message.label };
+      choices[domain].selected = { selector: message.selector, label: message.label, mode: message.mode || "reject" };
       chrome.storage.local.set({ cookie_choices: choices }, () => sendResponse());
     });
     return true;

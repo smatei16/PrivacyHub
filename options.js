@@ -1,21 +1,23 @@
-const apiKeyInput    = document.getElementById("apiKeyInput");
-const toggleVisBtn   = document.getElementById("toggleVisibility");
-const saveBtn        = document.getElementById("saveBtn");
-const removeKeyBtn   = document.getElementById("removeKeyBtn");
-const keyStatus      = document.getElementById("keyStatus");
-const hibpKeyInput   = document.getElementById("hibpKeyInput");
-const hibpToggleBtn  = document.getElementById("hibpToggleVisibility");
-const hibpSaveBtn    = document.getElementById("hibpSaveBtn");
-const hibpRemoveBtn  = document.getElementById("hibpRemoveBtn");
-const hibpKeyStatus  = document.getElementById("hibpKeyStatus");
-const clearCacheBtn  = document.getElementById("clearCacheBtn");
-const cacheStatus    = document.getElementById("cacheStatus");
+const apiKeyInput      = document.getElementById("apiKeyInput");
+const toggleVisBtn     = document.getElementById("toggleVisibility");
+const saveBtn          = document.getElementById("saveBtn");
+const removeKeyBtn     = document.getElementById("removeKeyBtn");
+const keyStatus        = document.getElementById("keyStatus");
+const hibpKeyInput     = document.getElementById("hibpKeyInput");
+const hibpToggleBtn    = document.getElementById("hibpToggleVisibility");
+const hibpSaveBtn      = document.getElementById("hibpSaveBtn");
+const hibpRemoveBtn    = document.getElementById("hibpRemoveBtn");
+const hibpKeyStatus    = document.getElementById("hibpKeyStatus");
+const autoRejectToggle = document.getElementById("autoRejectToggle");
+const clearCacheBtn    = document.getElementById("clearCacheBtn");
+const cacheStatus      = document.getElementById("cacheStatus");
 
-// ── Load existing keys ───────────────────────────────────────────────────────
+// ── Load existing keys and settings ─────────────────────────────────────────
 
-chrome.storage.local.get(["claudeApiKey", "hibpApiKey"], (data) => {
-  if (data.claudeApiKey) apiKeyInput.value  = data.claudeApiKey;
-  if (data.hibpApiKey)   hibpKeyInput.value = data.hibpApiKey;
+chrome.storage.local.get(["claudeApiKey", "hibpApiKey", "autoRejectCookies"], (data) => {
+  if (data.claudeApiKey)    apiKeyInput.value      = data.claudeApiKey;
+  if (data.hibpApiKey)      hibpKeyInput.value     = data.hibpApiKey;
+  autoRejectToggle.checked = !!data.autoRejectCookies;
 });
 
 // ── Claude key — toggle visibility ──────────────────────────────────────────
@@ -88,6 +90,12 @@ hibpRemoveBtn.addEventListener("click", () => {
   });
 });
 
+// ── Auto-reject toggle ────────────────────────────────────────────────────────
+
+autoRejectToggle.addEventListener("change", () => {
+  chrome.storage.local.set({ autoRejectCookies: autoRejectToggle.checked });
+});
+
 // ── Clear cache ───────────────────────────────────────────────────────────────
 
 clearCacheBtn.addEventListener("click", () => {
@@ -96,6 +104,13 @@ clearCacheBtn.addEventListener("click", () => {
       k.startsWith("analysis_") || k.startsWith("status_") ||
       k.startsWith("links_")    || k.startsWith("hibp_")
     );
+    // Also reset remembered cookie-banner choices. A past false-positive match
+    // (e.g. a "Settings" button unrelated to any cookie banner) could have
+    // gotten saved as a domain's "choice", which silently disables auto-reject
+    // for that domain forever with no other way to undo it.
+    const cookieDomainCount = allData.cookie_choices ? Object.keys(allData.cookie_choices).length : 0;
+    if (cookieDomainCount > 0) toRemove.push("cookie_choices");
+
     if (toRemove.length === 0) {
       flashStatus(cacheStatus, "No cached data to clear.", "success");
       return;
@@ -106,6 +121,7 @@ clearCacheBtn.addEventListener("click", () => {
       const parts = [];
       if (analyses) parts.push(`${analyses} privacy analysis${analyses > 1 ? "es" : ""}`);
       if (breaches) parts.push(`${breaches} breach cache${breaches > 1 ? "s" : ""}`);
+      if (cookieDomainCount) parts.push(`${cookieDomainCount} remembered cookie choice${cookieDomainCount > 1 ? "s" : ""}`);
       flashStatus(cacheStatus, `Cleared: ${parts.join(" and ")}.`, "success");
     });
   });

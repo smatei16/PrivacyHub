@@ -184,6 +184,7 @@ chrome.runtime.sendMessage({ type: "GET_COOKIE_CHOICE", url: window.location.hre
         buttons: buttonData
       });
     }
+    tryAutoReject();
   }
 });
 
@@ -192,12 +193,319 @@ document.addEventListener("click", function(e) {
   const match = buttonData.find(btn => {
     try { return e.target.matches(btn.selector); } catch { return false; }
   });
-  if (match) {
+  // Guard against false positives: the loose keyword list above matches plenty
+  // of ordinary site UI ("Settings", "Accept", "Agree", ...). Only persist the
+  // click as "the" cookie choice for this domain if it actually happened inside
+  // a cookie/consent banner — otherwise an unrelated click permanently disables
+  // auto-reject for the domain (GET_COOKIE_CHOICE would return a stale choice
+  // and tryAutoReject() would never run again).
+  if (match && isInsideConsentContainer(e.target)) {
     chrome.runtime.sendMessage({
       type: "SAVE_COOKIE_CHOICE",
       url: window.location.href,
       selector: match.selector,
-      label: match.label
+      label: match.label,
+      mode: "manual"
     });
   }
 }, true);
+
+// ── Auto-reject cookie banners ────────────────────────────────────────────────
+
+// Three tiers ordered by confidence. Lower index = higher priority.
+// Tier 0: unambiguous full-reject phrases  → startsWith matching allowed
+// Tier 1: "necessary/essential only" phrases → startsWith matching allowed
+// Tier 2: generic single-word reject terms  → exact match only (false-positive guard)
+const REJECT_TIERS = [
+  [
+    // English
+    "reject all cookies", "reject all", "refuse all cookies", "refuse all",
+    "decline all cookies", "decline all", "deny all cookies", "deny all",
+    "block all cookies", "block all", "reject cookies", "refuse cookies",
+    // French
+    "tout refuser", "refuser tout", "rejeter tout", "refuser tous les cookies",
+    // German
+    "alle cookies ablehnen", "alle ablehnen", "alles ablehnen", "cookies ablehnen",
+    // Spanish
+    "rechazar todas las cookies", "rechazar todo", "rechazar todas", "rechazar cookies",
+    // Romanian
+    "refuza toate cookie-urile", "refuza tot", "respinge tot", "refuza toate", "refuză tot", "refuză toate cookie-urile",
+    "refuză toate", "refuză cookies", "respingere cookies",
+    // Portuguese
+    "rejeitar todos os cookies", "rejeitar tudo", "recusar tudo", "recusar todos"
+  ],
+  [
+    // English
+    "only necessary cookies", "only necessary", "necessary cookies only", "necessary only",
+    "only essential cookies", "only essential", "essential cookies only", "essential only",
+    "accept necessary cookies only", "accept only necessary cookies",
+    "accept necessary only", "accept only necessary",
+    "accept essential only", "accept only essential",
+    "use only necessary cookies", "use only necessary",
+    "allow necessary only", "allow only necessary",
+    // French
+    "uniquement les cookies nécessaires", "uniquement nécessaires", "uniquement necessaires",
+    "accepter uniquement les nécessaires", "cookies nécessaires uniquement",
+    // German
+    "nur notwendige cookies", "nur notwendige", "nur erforderliche cookies", "nur erforderliche",
+    "notwendige cookies akzeptieren", "nur notwendige cookies akzeptieren",
+    // Spanish
+    "solo cookies necesarias", "solo las necesarias", "solo necesarias", "solo esenciales",
+    "aceptar solo las necesarias", "aceptar solo cookies necesarias",
+    // Romanian
+    "doar cookie-urile necesare", "doar necesare", "accepta doar necesare",
+    "numai cookie-urile necesare",
+    // Portuguese
+    "apenas cookies necessários", "apenas necessários", "somente necessários",
+    "somente cookies necessários", "aceitar apenas necessários"
+  ],
+  [
+    // English — exact match only for single words
+    "reject", "refuse", "decline",
+    // French
+    "refuser", "rejeter",
+    // German
+    "ablehnen",
+    // Spanish
+    "rechazar",
+    // Romanian
+    "refuza", "respinge", "refuză", "refuz",
+    // Portuguese
+    "rejeitar", "recusar"
+  ]
+];
+
+// Known CMP/consent platform identifiers and generic consent-related signals.
+// Checked against ancestor element id, class name, and aria-label.
+const CONSENT_SIGNALS = [
+  "cookie", "consent", "gdpr", "ccpa", "rgpd", "eprivacy",
+  "cmp", "banner", "notice", "privacy-notice", "cookie-notice",
+  "cookie-bar", "cookie-popup", "cookie-modal", "cookie-dialog",
+  "cookie-overlay", "cookie-policy", "cookiepolicy",
+  // Common CMP vendors
+  "onetrust", "cookielaw", "cookiebot", "trustarc", "didomi",
+  "quantcast", "evidon", "usercentrics", "cookiepro", "consentmanager",
+  "cookieconsent", "cookie-consent", "cookie_consent",
+  "termly", "iubenda", "complianz", "borlabs"
+];
+
+function isVisible(el) {
+  if (el.offsetWidth === 0 && el.offsetHeight === 0) return false;
+  const style = window.getComputedStyle(el);
+  return style.display !== "none" && style.visibility !== "hidden" && parseFloat(style.opacity) > 0;
+}
+
+function findConsentContainer(el) {
+  // Walk up to 8 ancestors looking for CMP/consent signals in id, class, or aria-label.
+  // Returns the matched ancestor node, or null if none of the strong signals hit.
+  let node = el.parentElement;
+  for (let depth = 0; node && node !== document.body && depth < 8; depth++) {
+    const id        = (node.id || "").toLowerCase();
+    const cls       = (typeof node.className === "string" ? node.className : "").toLowerCase();
+    const ariaLabel = (node.getAttribute("aria-label") || "").toLowerCase();
+    const role      = (node.getAttribute("role") || "").toLowerCase();
+
+    if (CONSENT_SIGNALS.some(s => id.includes(s) || cls.includes(s) || ariaLabel.includes(s))) {
+      return node;
+    }
+    // dialog/region roles with cookie-related text are strong signals
+    if ((role === "dialog" || role === "alertdialog" || role === "region") && depth <= 4) {
+      const snippet = node.textContent.slice(0, 600).toLowerCase();
+      if (snippet.includes("cookie") || snippet.includes("gdpr") || snippet.includes("consent")) {
+        return node;
+      }
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
+function isInsideConsentContainer(el) {
+  if (findConsentContainer(el)) return true;
+
+  // Last-resort: require the direct parent text to mention cookies AND a consent action,
+  // to avoid matching a "Decline" button in unrelated UI.
+  const nearby = (el.parentElement?.textContent || "").slice(0, 400).toLowerCase();
+  const hasCookieWord  = nearby.includes("cookie") || nearby.includes("gdpr") || nearby.includes("consent");
+  const hasActionWord  = nearby.includes("accept") || nearby.includes("reject") ||
+                         nearby.includes("decline") || nearby.includes("preference");
+  return hasCookieWord && hasActionWord;
+}
+
+function findBestRejectButton() {
+  const candidates = Array.from(
+    document.querySelectorAll("button, [role='button'], input[type='button'], a")
+  ).filter(el => isVisible(el));
+
+  let bestEl   = null;
+  let bestTier = Infinity;
+
+  for (const el of candidates) {
+    const text = el.textContent.trim().toLowerCase();
+    if (!text || text.length > 90) continue;
+
+    for (let t = 0; t < REJECT_TIERS.length; t++) {
+      if (t >= bestTier) break; // can't improve on what we already have
+      const isExactOnly = t === 2; // tier 2: single words, exact match only
+      const matched = REJECT_TIERS[t].some(k =>
+        isExactOnly ? text === k : (text === k || text.startsWith(k))
+      );
+      if (matched && isInsideConsentContainer(el)) {
+        bestEl   = el;
+        bestTier = t;
+        break;
+      }
+    }
+
+    if (bestTier === 0) break; // can't do better than tier 0
+  }
+
+  return bestEl;
+}
+
+// ── Notice-only banners (no reject option offered) ───────────────────────────
+//
+// Some banners — common on government/university/institutional sites — only
+// inform you that cookies are used and offer a single acknowledgment button
+// ("OK", "Accept", "Got it", ...) with no way to decline. There's no privacy
+// choice being given up by dismissing these, so it's worth clearing them out
+// of the way too. We only do this when findBestRejectButton() has already
+// failed AND the banner has no "Manage/Customize/Preferences" escape hatch —
+// if one exists, a real reject option may be one click deeper, so we leave it
+// alone rather than risk silently accepting full tracking.
+
+const MANAGE_KEYWORDS = [
+  // English
+  "preferences", "settings", "customize", "customise", "manage",
+  "manage cookies", "manage preferences", "cookie settings", "more options",
+  // French
+  "paramètres", "parametres", "personnaliser", "gérer", "gerer",
+  // German
+  "einstellungen", "anpassen", "verwalten",
+  // Spanish
+  "configuración", "configuracion", "personalizar", "gestionar",
+  // Romanian
+  "setări", "setari", "personalizează", "personalizeaza", "gestionează", "gestioneaza",
+  // Portuguese
+  "preferências", "preferencias", "gerenciar"
+];
+
+// Neutral, non-committal wording preferred when a banner offers more than one
+// acknowledgment-style button (e.g. both "Accept" and "Close") — clicking any
+// of them has the same effect since there's no real choice, but "close"/"got
+// it" reads less like an affirmative privacy decision than "accept".
+const NEUTRAL_ACK_WORDS = [
+  "ok", "okay", "got it", "close", "dismiss", "continue", "understood",
+  "compris", "d'accord", "fermer", "continuer",
+  "verstanden", "schließen", "weiter",
+  "entendido", "de acuerdo", "cerrar", "continuar",
+  "am înțeles", "am inteles", "de acord", "închide", "inchide", "continuă", "continua", "sunt de acord",
+  "entendi", "fechar"
+];
+
+const ACK_KEYWORDS = [
+  ...NEUTRAL_ACK_WORDS,
+  // English
+  "accept", "accept all", "accept cookies", "i understand", "i agree", "agree", "allow", "allow all",
+  // French
+  "j'ai compris", "j'accepte", "tout accepter", "accepter",
+  // German
+  "akzeptieren", "alle akzeptieren", "einverstanden",
+  // Spanish
+  "aceptar", "aceptar todo",
+  // Romanian
+  "accept", "accepta", "accept tot",
+  // Portuguese
+  "concordo", "aceitar", "aceitar tudo"
+];
+
+function findAcknowledgeButton() {
+  const candidates = Array.from(
+    document.querySelectorAll("button, [role='button'], input[type='button'], a")
+  ).filter(el => isVisible(el));
+
+  // Group candidates by the consent container they belong to, so a "Manage
+  // preferences" link in one banner can't block dismissal of an unrelated
+  // banner elsewhere on the page.
+  const containers = new Map();
+
+  for (const el of candidates) {
+    const text = el.textContent.trim().toLowerCase();
+    if (!text || text.length > 90) continue;
+
+    const container = findConsentContainer(el);
+    if (!container) continue;
+
+    if (!containers.has(container)) containers.set(container, { ackEls: [], hasManage: false });
+    const entry = containers.get(container);
+
+    if (MANAGE_KEYWORDS.some(k => text === k || text.startsWith(k))) entry.hasManage = true;
+    if (ACK_KEYWORDS.some(k => text === k)) entry.ackEls.push(el);
+  }
+
+  for (const entry of containers.values()) {
+    if (entry.hasManage || entry.ackEls.length === 0) continue; // escape hatch to a real choice — leave it alone
+    const neutral = entry.ackEls.find(el => NEUTRAL_ACK_WORDS.includes(el.textContent.trim().toLowerCase()));
+    return neutral || entry.ackEls[0];
+  }
+
+  return null;
+}
+
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+}
+
+function tryAutoReject() {
+  chrome.storage.local.get("autoRejectCookies", (data) => {
+    if (!data.autoRejectCookies) return;
+
+    let rejected = false;
+    let observer = null; // declared before attemptClick so the closure can safely reference it
+
+    function attemptClick() {
+      if (rejected) return;
+
+      const rejectBtn = findBestRejectButton();
+      if (rejectBtn) {
+        rejected = true;
+        observer?.disconnect();
+        rejectBtn.click();
+        chrome.runtime.sendMessage({
+          type: "SAVE_COOKIE_CHOICE",
+          url: window.location.href,
+          selector: generateUniqueSelector(rejectBtn),
+          label: rejectBtn.textContent.trim(),
+          mode: "reject"
+        });
+        return;
+      }
+
+      // No reject option anywhere on the page. If there's a banner that's a
+      // pure notice — no decline button and no "manage preferences" path to
+      // one — dismiss it too, since there's nothing privacy-preserving to lose.
+      const ackBtn = findAcknowledgeButton();
+      if (!ackBtn) return;
+      rejected = true;
+      observer?.disconnect();
+      ackBtn.click();
+      chrome.runtime.sendMessage({
+        type: "SAVE_COOKIE_CHOICE",
+        url: window.location.href,
+        selector: generateUniqueSelector(ackBtn),
+        label: ackBtn.textContent.trim(),
+        mode: "acknowledge"
+      });
+    }
+
+    // Try immediately (covers banners already in the DOM at document_end)
+    attemptClick();
+    if (rejected) return;
+
+    // Watch for dynamically injected banners (10-second window)
+    observer = new MutationObserver(debounce(attemptClick, 250));
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => observer?.disconnect(), 10000);
+  });
+}
