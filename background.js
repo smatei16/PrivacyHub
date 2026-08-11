@@ -1,6 +1,17 @@
 // In-memory set to track active analyses (survives only for SW lifetime)
 const pendingAnalyses = new Set();
 
+// Cookie-choice messages can now arrive from any frame on the page (content.js
+// runs with all_frames: true so it can reach cookie banners rendered inside
+// cross-origin CMP iframes). message.url is that frame's own URL — inside an
+// iframe that's the CMP vendor's domain, not the site the user is on. Prefer
+// sender.tab.url (the tab's actual address-bar URL) so choices are always
+// filed under the site itself, regardless of which frame handled the banner.
+function pageDomainFor(message, sender) {
+  const pageUrl = sender.tab?.url || message.url;
+  return new URL(pageUrl).hostname;
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // ── Policy link storage ──────────────────────────────────────────────────
@@ -74,7 +85,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // ── Cookie banner detection (preserved from v1) ──────────────────────────
   if (message.type === "COOKIE_BANNER_DETECTED") {
-    const domain = new URL(message.url).hostname;
+    const domain = pageDomainFor(message, sender);
     chrome.storage.local.get(["cookie_choices"], (data) => {
       const choices = data.cookie_choices || {};
       if (!choices[domain]) {
@@ -88,7 +99,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "GET_COOKIE_CHOICE") {
-    const domain = new URL(message.url).hostname;
+    const domain = pageDomainFor(message, sender);
     chrome.storage.local.get(["cookie_choices"], (data) => {
       const choice = data.cookie_choices?.[domain]?.selected || null;
       sendResponse({ choice });
@@ -97,7 +108,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "SAVE_COOKIE_CHOICE") {
-    const domain = new URL(message.url).hostname;
+    const domain = pageDomainFor(message, sender);
     chrome.storage.local.get(["cookie_choices"], (data) => {
       const choices = data.cookie_choices || {};
       if (!choices[domain]) choices[domain] = {};
