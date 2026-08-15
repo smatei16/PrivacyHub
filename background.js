@@ -120,50 +120,243 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // ── HIBP data breach check ───────────────────────────────────────────────────
   if (message.type === "CHECK_HIBP") {
-    const { domain } = message;
-    const HIBP_TTL  = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-    (async () => {
-      try {
-        const cacheKey = `hibp_${domain}`;
-        const stored   = await new Promise(r => chrome.storage.local.get([cacheKey, "hibpApiKey"], r));
-        const apiKey   = stored.hibpApiKey;
-
-        if (!apiKey) { sendResponse({ status: "no_key" }); return; }
-
-        const cached = stored[cacheKey];
-        if (cached && (Date.now() - cached.fetchedAt) < HIBP_TTL) {
-          sendResponse({ status: "done", breaches: cached.breaches });
-          return;
-        }
-
-        const rootDomain = getRootDomain(domain);
-        const res = await fetch(
-          `https://haveibeenpwned.com/api/v3/breaches?domain=${encodeURIComponent(rootDomain)}`,
-          { headers: { "hibp-api-key": apiKey, "user-agent": "PrivacyHub/2.0" } }
-        );
-
-        if (res.status === 401) {
-          sendResponse({ status: "error", message: "Invalid HIBP API key." });
-          return;
-        }
-        if (!res.ok && res.status !== 404) {
-          sendResponse({ status: "error", message: `HIBP API returned ${res.status}.` });
-          return;
-        }
-
-        const breaches = res.ok ? await res.json() : [];
-        chrome.storage.local.set({ [cacheKey]: { breaches, fetchedAt: Date.now() } });
-        sendResponse({ status: "done", breaches });
-      } catch (err) {
-        sendResponse({ status: "error", message: err.message });
-      }
-    })();
-
+    getHibpBreaches(message.domain).then(sendResponse);
     return true;
   }
 
   return true;
+});
+
+// ── HIBP data breach lookups ─────────────────────────────────────────────────
+
+const HIBP_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days — how long a domain's breach data is trusted before re-fetching.
+
+/**
+ * HIBP's Core API tier rate-limits requests (roughly one every 1.5s).
+ * getHibpBreaches() is cache-first, so this only matters for cache misses —
+ * but both the popup (CHECK_HIBP) and the passive post-navigation check
+ * (maybeNotifyBreach) can trigger those, and a burst of newly-visited
+ * domains could otherwise fire several requests back to back. Chaining every
+ * real outbound request through this single queue, with a fixed gap enforced
+ * after each one finishes, keeps that from ever bursting past the limit.
+ */
+let hibpFetchChain = Promise.resolve();
+const HIBP_MIN_GAP_MS = 1600;
+
+function throttledHibpFetch(url, options) {
+  const scheduled = hibpFetchChain.then(() => fetch(url, options));
+  hibpFetchChain = scheduled
+    .catch(() => {}) // one failed request shouldn't jam the queue for the next
+    .then(() => new Promise(r => setTimeout(r, HIBP_MIN_GAP_MS)));
+  return scheduled;
+}
+
+/**
+ * Fetches HIBP breach data for `domain`, cache-first (see HIBP_TTL). Shared
+ * by the on-demand CHECK_HIBP message handler (popup) and the passive
+ * per-navigation check (maybeNotifyBreach) so both paths share one cache and
+ * one throttled request queue instead of racing each other.
+ * @param {string} domain
+ * @returns {Promise<{status: "no_key"|"done"|"error", breaches?: object[], message?: string}>}
+ */
+async function getHibpBreaches(domain) {
+  try {
+    const cacheKey = `hibp_${domain}`;
+    const stored   = await new Promise(r => chrome.storage.local.get([cacheKey, "hibpApiKey"], r));
+    const apiKey   = stored.hibpApiKey;
+
+    if (!apiKey) return { status: "no_key" };
+
+    const cached = stored[cacheKey];
+    if (cached && (Date.now() - cached.fetchedAt) < HIBP_TTL) {
+      return { status: "done", breaches: cached.breaches };
+    }
+
+    const rootDomain = getRootDomain(domain);
+    const res = await throttledHibpFetch(
+      `https://haveibeenpwned.com/api/v3/breaches?domain=${encodeURIComponent(rootDomain)}`,
+      { headers: { "hibp-api-key": apiKey, "user-agent": "PrivacyHub/2.0" } }
+    );
+
+    if (res.status === 401) return { status: "error", message: "Invalid HIBP API key." };
+    if (!res.ok && res.status !== 404) return { status: "error", message: `HIBP API returned ${res.status}.` };
+
+    const breaches = res.ok ? await res.json() : [];
+    chrome.storage.local.set({ [cacheKey]: { breaches, fetchedAt: Date.now() } });
+    return { status: "done", breaches };
+  } catch (err) {
+    return { status: "error", message: err.message };
+  }
+}
+
+// ── Passive breach notifications ─────────────────────────────────────────────
+// Everything above only runs when the popup asks for it. The whole point of
+// this section is that most users never open the popup on every site they
+// visit, so without it a real breach would go unnoticed. This listens for
+// completed page loads and, if the user has opted in, runs the same
+// cache-first check silently and raises an OS notification when it finds
+// something — throttled per-domain so revisits don't spam the same alert.
+
+/** Maps a live notification id -> the tabId that triggered it (best-effort, in-memory only; lost on service-worker restart, which just means a click falls back to opening the popup on whatever tab is currently active). */
+const notificationTabs = new Map();
+
+/**
+ * Per-cooldown-setting minimum gap, in ms, before re-notifying about the
+ * same domain. "always" means no cooldown at all; "never" (Infinity) means
+ * a domain gets exactly one notification ever, then no repeats — handled
+ * as a special case in maybeNotifyBreach since a naive comparison against
+ * Infinity would also swallow that first notification.
+ */
+const COOLDOWN_MS = {
+  always: 0,
+  "1d": 1 * 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
+  never: Infinity
+};
+
+/**
+ * HIBP's /breaches?domain= endpoint returns every breach it has on record
+ * for a domain, no matter how old — a domain whose only breach was a decade
+ * ago looks identical to one breached last week. Without filtering, that
+ * makes "Data breach detected" misleading for old, already-public breaches.
+ * This maps the user's "only notify for recent breaches" setting to a max
+ * age in ms; "any" (null) means no filtering, matching the pre-filter
+ * behavior for anyone who hasn't touched the new setting.
+ */
+const RECENCY_MS = {
+  any: null,
+  "2y": 2 * 365.25 * 24 * 60 * 60 * 1000,
+  "5y": 5 * 365.25 * 24 * 60 * 60 * 1000
+};
+
+/**
+ * Formats a breach's BreachDate for display, e.g. "Mar 2023" — mirrors
+ * formatBreachDate() in popup.js so the date reads the same whether the
+ * user sees it in a notification or in the popup's breach list.
+ * @param {string} dateStr
+ * @returns {string}
+ */
+function formatBreachDate(dateStr) {
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+/**
+ * Returns the breach with the latest BreachDate, or null for an empty list.
+ * @param {object[]} breaches
+ * @returns {object|null}
+ */
+function mostRecentBreach(breaches) {
+  return breaches.reduce(
+    (latest, b) => (!latest || new Date(b.BreachDate) > new Date(latest.BreachDate)) ? b : latest,
+    null
+  );
+}
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status !== "complete" || !tab.url) return;
+
+  let domain;
+  try {
+    const u = new URL(tab.url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return; // skip chrome://, file://, etc.
+    domain = u.hostname;
+  } catch {
+    return;
+  }
+
+  maybeNotifyBreach(tabId, domain);
+});
+
+/**
+ * Runs a silent, cache-first breach check for `domain` and raises an OS
+ * notification if it has known breaches and hasn't been notified about
+ * within the user's configured cooldown. No-ops immediately (no network
+ * request) if the feature is off or no HIBP key is configured, so a user who
+ * hasn't opted in never pays the cost of this running on every navigation.
+ * @param {number} tabId - The tab that navigated, used so clicking the
+ *   notification can jump back to it (see chrome.notifications.onClicked).
+ * @param {string} domain
+ */
+async function maybeNotifyBreach(tabId, domain) {
+  const settings = await new Promise(r => chrome.storage.local.get(
+    ["breachNotificationsEnabled", "breachNotifyCooldown", "breachNotifyRecency", "hibpApiKey"], r
+  ));
+  if (!settings.breachNotificationsEnabled || !settings.hibpApiKey) return;
+
+  const result = await getHibpBreaches(domain);
+  if (result.status !== "done" || !result.breaches || result.breaches.length === 0) return;
+
+  // Only breaches within the user's configured recency window are eligible
+  // to trigger (and be described in) the notification — an old breach the
+  // domain has long since disclosed shouldn't read as "just happened".
+  // "any"/unset means no filtering, so every known breach still qualifies.
+  const maxAgeMs = RECENCY_MS[settings.breachNotifyRecency] ?? null;
+  const qualifying = maxAgeMs
+    ? result.breaches.filter(b => (Date.now() - new Date(b.BreachDate).getTime()) <= maxAgeMs)
+    : result.breaches;
+  if (qualifying.length === 0) return;
+
+  const cooldownMs   = COOLDOWN_MS[settings.breachNotifyCooldown] ?? COOLDOWN_MS["7d"];
+  const notifiedKey  = `hibpNotifiedAt_${domain}`;
+  const notifiedData = await new Promise(r => chrome.storage.local.get(notifiedKey, r));
+  const lastNotified = notifiedData[notifiedKey] || 0;
+
+  // lastNotified === 0 means this domain has never triggered a notification
+  // before, so the first one always goes out regardless of cooldown — the
+  // cooldown/"never" setting only governs *repeat* notifications for a
+  // domain the user has already been warned about once.
+  if (lastNotified > 0) {
+    if (cooldownMs === Infinity) return; // "Never remind again" — already notified once, done for good
+    if ((Date.now() - lastNotified) < cooldownMs) return;
+  }
+
+  // Count and "most recent" are both drawn from the qualifying (filtered)
+  // set, not the full breach history — the message should describe what
+  // actually triggered this notification, not pad it with older breaches
+  // the recency filter deliberately excluded.
+  const count = qualifying.length;
+  const recentDate = formatBreachDate(mostRecentBreach(qualifying).BreachDate);
+  const notificationId = `hibp_${domain}`;
+
+  chrome.notifications.create(notificationId, {
+    type: "basic",
+    iconUrl: "icon128.png",
+    title: "Data breach detected",
+    message: `${domain} has ${count} known data breach${count === 1 ? "" : "es"}, most recent ${recentDate}. Click to see details.`,
+    priority: 1
+  });
+  notificationTabs.set(notificationId, tabId);
+
+  chrome.storage.local.set({ [notifiedKey]: Date.now() });
+}
+
+// Clicking the notification jumps back to the tab that triggered it (if
+// still open) and opens the popup there, so the user lands on the same
+// breach details they'd see by checking on-demand. openPopup() can fail on
+// older Chrome versions or if the window can't be focused — that's caught
+// and swallowed since the notification's own text already summarized the
+// breach, so there's nothing left to show the user on failure.
+chrome.notifications.onClicked.addListener(async (notificationId) => {
+  chrome.notifications.clear(notificationId);
+
+  const tabId = notificationTabs.get(notificationId);
+  if (tabId != null) {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      await chrome.tabs.update(tabId, { active: true });
+      await chrome.windows.update(tab.windowId, { focused: true });
+    } catch {
+      // Tab was closed since the notification fired — fall through and open
+      // the popup on whatever tab is currently active instead.
+    }
+  }
+
+  try {
+    await chrome.action.openPopup();
+  } catch (err) {
+    console.warn("[PrivacyHub] Could not open popup from notification:", err.message);
+  }
 });
 
 // ── Core analysis pipeline ───────────────────────────────────────────────────

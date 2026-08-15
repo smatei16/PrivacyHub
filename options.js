@@ -8,17 +8,27 @@ const hibpToggleBtn    = document.getElementById("hibpToggleVisibility");
 const hibpSaveBtn      = document.getElementById("hibpSaveBtn");
 const hibpRemoveBtn    = document.getElementById("hibpRemoveBtn");
 const hibpKeyStatus    = document.getElementById("hibpKeyStatus");
-const autoRejectToggle = document.getElementById("autoRejectToggle");
-const clearCacheBtn    = document.getElementById("clearCacheBtn");
-const cacheStatus      = document.getElementById("cacheStatus");
+const autoRejectToggle     = document.getElementById("autoRejectToggle");
+const breachNotifyToggle   = document.getElementById("breachNotifyToggle");
+const breachCooldownSelect = document.getElementById("breachCooldownSelect");
+const breachRecencySelect  = document.getElementById("breachRecencySelect");
+const clearCacheBtn        = document.getElementById("clearCacheBtn");
+const cacheStatus          = document.getElementById("cacheStatus");
 
 // ── Load existing keys and settings ─────────────────────────────────────────
 
-chrome.storage.local.get(["claudeApiKey", "hibpApiKey", "autoRejectCookies"], (data) => {
-  if (data.claudeApiKey)    apiKeyInput.value      = data.claudeApiKey;
-  if (data.hibpApiKey)      hibpKeyInput.value     = data.hibpApiKey;
-  autoRejectToggle.checked = !!data.autoRejectCookies;
-});
+chrome.storage.local.get(
+  ["claudeApiKey", "hibpApiKey", "autoRejectCookies", "breachNotificationsEnabled",
+   "breachNotifyCooldown", "breachNotifyRecency"],
+  (data) => {
+    if (data.claudeApiKey)    apiKeyInput.value      = data.claudeApiKey;
+    if (data.hibpApiKey)      hibpKeyInput.value     = data.hibpApiKey;
+    autoRejectToggle.checked   = !!data.autoRejectCookies;
+    breachNotifyToggle.checked = !!data.breachNotificationsEnabled; // off by default
+    breachCooldownSelect.value = data.breachNotifyCooldown || "7d";
+    breachRecencySelect.value  = data.breachNotifyRecency || "any";
+  }
+);
 
 // ── Claude key — toggle visibility ──────────────────────────────────────────
 
@@ -96,13 +106,28 @@ autoRejectToggle.addEventListener("change", () => {
   chrome.storage.local.set({ autoRejectCookies: autoRejectToggle.checked });
 });
 
+// ── Breach notifications ─────────────────────────────────────────────────────
+
+breachNotifyToggle.addEventListener("change", () => {
+  chrome.storage.local.set({ breachNotificationsEnabled: breachNotifyToggle.checked });
+});
+
+breachCooldownSelect.addEventListener("change", () => {
+  chrome.storage.local.set({ breachNotifyCooldown: breachCooldownSelect.value });
+});
+
+breachRecencySelect.addEventListener("change", () => {
+  chrome.storage.local.set({ breachNotifyRecency: breachRecencySelect.value });
+});
+
 // ── Clear cache ───────────────────────────────────────────────────────────────
 
 clearCacheBtn.addEventListener("click", () => {
   chrome.storage.local.get(null, (allData) => {
     const toRemove = Object.keys(allData).filter(k =>
       k.startsWith("analysis_") || k.startsWith("status_") ||
-      k.startsWith("links_")    || k.startsWith("hibp_")
+      k.startsWith("links_")    || k.startsWith("hibp_") ||
+      k.startsWith("hibpNotifiedAt_") // per-domain notification cooldowns — reset so freshly re-fetched breach data can notify right away instead of waiting out a stale cooldown
     );
     // Also reset remembered cookie-banner choices. A past false-positive match
     // (e.g. a "Settings" button unrelated to any cookie banner) could have
