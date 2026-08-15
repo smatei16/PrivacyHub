@@ -331,6 +331,61 @@ body {
   background: transparent;
   border: 1px dashed #cbd5e1;
   color: #94a3b8;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.chip--more:hover,
+.chip--more:focus-visible {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #475569;
+}
+
+.chip--more:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 1px;
+}
+
+/* Toggle that reveals the collapsed "conditional data" chip group — data
+   the policy only collects for specific actions (job applications, account
+   signup, etc.), not from every visitor. Styled as unobtrusive text rather
+   than a button so it doesn't compete with the unconditional chips above. */
+.conditional-toggle {
+  display: block;
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: #64748b;
+  cursor: pointer;
+  text-align: left;
+}
+
+.conditional-toggle:hover,
+.conditional-toggle:focus-visible {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.conditional-toggle:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.conditional-chip-list {
+  margin-top: 8px;
+}
+
+/* Conditional-data chips reuse the dashed "more" treatment (non-interactive
+   here) to visually mark them as "not collected from everyone" without a
+   third chip color to learn. */
+.chip--conditional {
+  background: transparent;
+  border: 1px dashed #cbd5e1;
+  color: #94a3b8;
 }
 
 /* ── Vendor list ─────────────────────────────────────────────────────────── */

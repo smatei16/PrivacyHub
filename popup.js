@@ -38,6 +38,77 @@ function scoreDescription(score) {
   return "This site has weak privacy practices.";
 }
 
+/**
+ * Renders `items` into `container` as chips, capped at `cap` visible items.
+ * Any remainder is hidden behind a clickable/keyboard-activatable "+N more"
+ * chip that, on activation, removes itself and reveals the rest in place —
+ * so long lists (e.g. collectedData) don't overwhelm the popup by default
+ * but everything stays reachable.
+ * @param {HTMLElement} container - <ul>/<ol> to fill.
+ * @param {string[]} items - Chip label strings, in display order.
+ * @param {number} cap - Max chips to show before collapsing the rest.
+ * @param {string} [chipClass="chip"] - CSS class for each visible-item chip.
+ */
+function renderExpandableChips(container, items, cap, chipClass = "chip") {
+  container.innerHTML = "";
+
+  const appendChip = (text) => {
+    const li = document.createElement("li");
+    li.className = chipClass;
+    li.textContent = text;
+    container.appendChild(li);
+  };
+
+  const visible = items.slice(0, cap);
+  const hidden  = items.slice(cap);
+
+  visible.forEach(appendChip);
+
+  if (hidden.length > 0) {
+    const moreLi = document.createElement("li");
+    moreLi.className = "chip chip--more";
+    moreLi.textContent = `+${hidden.length} more`;
+    moreLi.tabIndex = 0;
+    moreLi.setAttribute("role", "button");
+    moreLi.setAttribute("aria-label", `Show ${hidden.length} more`);
+
+    const expand = () => {
+      moreLi.remove();
+      hidden.forEach(appendChip);
+    };
+    moreLi.addEventListener("click", expand);
+    moreLi.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        expand();
+      }
+    });
+
+    container.appendChild(moreLi);
+  }
+}
+
+/**
+ * Normalizes one "collectedData" entry into `{ type, conditional, context }`.
+ * background.js already normalizes fresh analyses into this shape before
+ * caching, but a result can also come straight from `analysis_<domain>`
+ * storage written by an older version of the extension, where each entry
+ * was a plain string with no conditional/context concept at all — that case
+ * is treated as unconditional data, matching the old behavior.
+ * @param {string|object} item - Raw entry from `result.collectedData`.
+ * @returns {{type: string, conditional: boolean, context: string}}
+ */
+function normalizeDataItem(item) {
+  if (typeof item === "string") {
+    return { type: item, conditional: false, context: "" };
+  }
+  return {
+    type: item?.type || "",
+    conditional: item?.conditional === true,
+    context: typeof item?.context === "string" ? item.context : ""
+  };
+}
+
 // ── Render results ───────────────────────────────────────────────────────────
 
 function renderResults(result) {
@@ -70,44 +141,68 @@ function renderResults(result) {
   document.getElementById("summaryText").textContent = result.summary || "No summary available.";
 
   // Concerns
+  // Capped client-side at 4, mirroring the prompt instruction in
+  // background.js — kept here too as a fallback so a verbose response never
+  // defeats the point of showing concerns as short, skimmable chips. Any
+  // extra concerns are still reachable via the expandable "+N more" chip.
   const concernsList = document.getElementById("concernsList");
-  concernsList.innerHTML = "";
-  const concerns = result.concerns || [];
-  if (concerns.length === 0) {
+  const allConcerns = result.concerns || [];
+  if (allConcerns.length === 0) {
     document.getElementById("concernsCard").classList.add("hidden");
   } else {
     document.getElementById("concernsCard").classList.remove("hidden");
-    concerns.forEach(c => {
-      const li = document.createElement("li");
-      li.className = "chip chip--warn";
-      li.textContent = c;
-      concernsList.appendChild(li);
-    });
+    renderExpandableChips(concernsList, allConcerns, 4, "chip chip--warn");
   }
 
   // Data collected
+  // Split into data collected from every visitor ("unconditional") vs. data
+  // the policy only mentions for a specific optional action — job
+  // applications, account signup, etc. ("conditional", see background.js's
+  // prompt rules). Showing both in one flat list overstates what a plain
+  // visitor is actually exposed to, so conditional items are collapsed
+  // behind a toggle instead, with the triggering action available on hover.
   const dataList = document.getElementById("dataList");
-  dataList.innerHTML = "";
-  const allData = result.collectedData || [];
-  const visibleData = allData.slice(0, 10);
-  if (visibleData.length === 0) {
+  const conditionalToggle = document.getElementById("conditionalDataToggle");
+  const conditionalList = document.getElementById("conditionalDataList");
+  const allItems = (result.collectedData || []).map(normalizeDataItem).filter(i => i.type);
+  const unconditional = allItems.filter(i => !i.conditional);
+  const conditional = allItems.filter(i => i.conditional);
+
+  if (unconditional.length === 0) {
+    dataList.innerHTML = "";
     const li = document.createElement("li");
     li.className = "chip";
     li.textContent = "None detected";
     dataList.appendChild(li);
   } else {
-    visibleData.forEach(d => {
-      const li = document.createElement("li");
-      li.className = "chip";
-      li.textContent = d;
-      dataList.appendChild(li);
-    });
-    if (allData.length > 10) {
-      const li = document.createElement("li");
-      li.className = "chip chip--more";
-      li.textContent = `+${allData.length - 10} more`;
-      dataList.appendChild(li);
-    }
+    renderExpandableChips(dataList, unconditional.map(i => i.type), 10, "chip");
+  }
+
+  conditionalList.innerHTML = "";
+  if (conditional.length === 0) {
+    conditionalToggle.classList.add("hidden");
+    conditionalList.classList.add("hidden");
+  } else {
+    conditionalToggle.classList.remove("hidden");
+    conditionalList.classList.add("hidden");
+    conditionalToggle.textContent =
+      `▸ Show ${conditional.length} more (only if you use certain features)`;
+
+    const revealConditional = () => {
+      conditional.forEach(item => {
+        const li = document.createElement("li");
+        li.className = "chip chip--conditional";
+        li.textContent = item.type;
+        if (item.context) li.title = `Only if you ${item.context}`;
+        conditionalList.appendChild(li);
+      });
+      conditionalList.classList.remove("hidden");
+      conditionalToggle.classList.add("hidden");
+    };
+    // Assigned (not addEventListener) so a later renderResults() call — e.g.
+    // after re-analyzing — replaces the previous handler instead of
+    // stacking a second one on this persistent DOM element.
+    conditionalToggle.onclick = revealConditional;
   }
 
   // Third parties
