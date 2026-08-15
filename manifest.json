@@ -3,7 +3,7 @@
   "name": "PrivacyHub",
   "version": "4.2",
   "description": "Analyzes website privacy policies using Claude AI and rates them with a privacy score.",
-  "permissions": ["scripting", "activeTab", "storage"],
+  "permissions": ["scripting", "activeTab", "storage", "notifications"],
   "background": {
     "service_worker": "background.js"
   },

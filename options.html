@@ -80,6 +80,25 @@
       box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
     }
 
+    select {
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #374151;
+      background: #fff;
+      cursor: pointer;
+      flex-shrink: 0;
+      max-width: 140px;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }
+
     .toggle-btn {
       padding: 9px 12px;
       border: 1px solid #d1d5db;
@@ -314,6 +333,58 @@
       </div>
     </div>
 
+    <!-- Breach Notifications -->
+    <div class="card">
+      <h2>Breach Notifications</h2>
+      <div class="setting-row">
+        <div class="setting-text">
+          <span class="setting-label">Notify me about data breaches</span>
+          <p class="hint" style="margin:0">
+            Normally the breach check only runs when you open the popup, so a breach on a site
+            you never revisit could go unnoticed. When enabled, PrivacyHub checks silently in
+            the background as you browse and raises a browser notification if a site you visit
+            has known breaches. Requires a HaveIBeenPwned API key above.
+          </p>
+        </div>
+        <label class="switch" title="Notify me about data breaches">
+          <input type="checkbox" id="breachNotifyToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-text">
+          <span class="setting-label">Remind me about the same site</span>
+          <p class="hint" style="margin:0">
+            Limits how often you're re-notified about a site you've already been warned about,
+            so revisiting it doesn't repeat the same alert.
+          </p>
+        </div>
+        <select id="breachCooldownSelect">
+          <option value="always">Every visit</option>
+          <option value="1d">Once a day</option>
+          <option value="7d" selected>Once a week</option>
+          <option value="30d">Once a month</option>
+          <option value="never">Never remind again</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <div class="setting-text">
+          <span class="setting-label">Only notify for recent breaches</span>
+          <p class="hint" style="margin:0">
+            HIBP reports every breach on record for a site, however old. Limiting notifications
+            to recent ones avoids an alert reading like breaking news for something that happened
+            years ago. Older breaches still show up when you open the popup — this only affects
+            what triggers a notification.
+          </p>
+        </div>
+        <select id="breachRecencySelect">
+          <option value="any" selected>Any breach</option>
+          <option value="2y">Within 2 years</option>
+          <option value="5y">Within 5 years</option>
+        </select>
+      </div>
+    </div>
+
     <!-- Cache -->
     <div class="card">
       <h2>Cached Analyses</h2>
@@ -321,8 +392,9 @@
         Privacy policy analyses and breach check results are cached per domain.
         Breach results are refreshed automatically after 7 days.
         Clear the cache to force a fresh analysis or breach check on next use.
-        This also resets any remembered cookie-banner choices, so auto-reject
-        will try again on domains where it previously stopped.
+        This also resets any remembered cookie-banner choices (so auto-reject
+        will try again on domains where it previously stopped) and any
+        per-domain breach-notification cooldowns.
       </p>
       <div class="btn-row">
         <button class="btn btn-danger" id="clearCacheBtn">Clear All Cached Analyses</button>
@@ -341,19 +413,23 @@
       <ul class="steps">
         <li>
           <span class="step-num">1</span>
-          <span>Visit any website — PrivacyHub automatically detects policy links and checks HIBP for data breaches.</span>
+          <span>Visit any website — PrivacyHub automatically detects privacy policy / terms-of-service links in the background.</span>
         </li>
         <li>
           <span class="step-num">2</span>
-          <span>The <strong>Data Breach Check</strong> section shows instantly: green if safe, red/amber if the site has known breaches with affected data types and a password recommendation.</span>
+          <span>Click the extension icon: the <strong>Data Breach Check</strong> section runs instantly — green if safe, red/amber if the site has known breaches with affected data types and a password recommendation.</span>
         </li>
         <li>
           <span class="step-num">3</span>
-          <span>Click the extension icon and press <strong>Analyze Privacy Policy</strong> to get an AI-powered privacy score, summary, and vendor list.</span>
+          <span>In the same popup, press <strong>Analyze Privacy Policy</strong> to get an AI-powered privacy score, summary, and vendor list.</span>
         </li>
         <li>
           <span class="step-num">4</span>
           <span>All results are cached — revisiting the same site shows results instantly. Breach data refreshes after 7 days.</span>
+        </li>
+        <li>
+          <span class="step-num">5</span>
+          <span>Turn on <strong>Notify me about data breaches</strong> above to get a browser notification for breaches on sites you visit, even without opening the popup.</span>
         </li>
       </ul>
     </div>
