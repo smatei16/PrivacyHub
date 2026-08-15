@@ -12,14 +12,60 @@ function pageDomainFor(message, sender) {
   return new URL(pageUrl).hostname;
 }
 
+/**
+ * Kicks off analysis for `domain` and writes the outcome to storage, same as
+ * before this was pulled out of the TRIGGER_ANALYSIS handler — now also
+ * called from POLICY_LINKS_FOUND when auto-analyze is on, so both the manual
+ * "Analyze Privacy Policy" button and the automatic path share one code
+ * path instead of duplicating the pendingAnalyses/status bookkeeping.
+ * No-ops if `domain` is already being analyzed (checked via pendingAnalyses,
+ * so a manual click can't double-fire alongside an auto-triggered run, or
+ * vice versa).
+ * @param {string} domain
+ * @param {string[]} links
+ */
+function startAnalysis(domain, links) {
+  if (pendingAnalyses.has(domain)) return;
+
+  pendingAnalyses.add(domain);
+  chrome.storage.local.set({ [`status_${domain}`]: "analyzing" });
+
+  analyzePolicy(links, domain)
+    .then(result => {
+      chrome.storage.local.set({
+        [`analysis_${domain}`]: result,
+        [`status_${domain}`]: "done"
+      });
+      pendingAnalyses.delete(domain);
+    })
+    .catch(err => {
+      console.error("[PrivacyHub] Analysis failed:", err);
+      chrome.storage.local.set({
+        [`status_${domain}`]: `error_${err.message}`
+      });
+      pendingAnalyses.delete(domain);
+    });
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // ── Policy link storage ──────────────────────────────────────────────────
   if (message.type === "POLICY_LINKS_FOUND") {
     const domain = message.domain;
-    chrome.storage.local.get(`links_${domain}`, (data) => {
+    const keys = [`links_${domain}`, `analysis_${domain}`, `status_${domain}`, "autoAnalyzeEnabled", "claudeApiKey"];
+
+    chrome.storage.local.get(keys, (data) => {
       if (!data[`links_${domain}`] || data[`links_${domain}`].length === 0) {
         chrome.storage.local.set({ [`links_${domain}`]: message.links });
+      }
+
+      // Auto-analyze: only for a domain with no analysis AND no status at
+      // all — not even a past error — so a site that previously failed
+      // (e.g. blocks scraping) isn't silently retried on every revisit.
+      // A manual retry from the popup is still always available for that.
+      const neverTouched = !data[`analysis_${domain}`] && !data[`status_${domain}`];
+      if (data.autoAnalyzeEnabled && data.claudeApiKey && neverTouched) {
+        startAnalysis(domain, message.links);
       }
     });
     sendResponse({ ok: true });
@@ -53,32 +99,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // ── Trigger analysis ─────────────────────────────────────────────────────
   if (message.type === "TRIGGER_ANALYSIS") {
-    const { domain, links } = message;
-
-    if (pendingAnalyses.has(domain)) {
-      sendResponse({ ok: true });
-      return true;
-    }
-
-    pendingAnalyses.add(domain);
-    chrome.storage.local.set({ [`status_${domain}`]: "analyzing" });
-
-    analyzePolicy(links, domain)
-      .then(result => {
-        chrome.storage.local.set({
-          [`analysis_${domain}`]: result,
-          [`status_${domain}`]: "done"
-        });
-        pendingAnalyses.delete(domain);
-      })
-      .catch(err => {
-        console.error("[PrivacyHub] Analysis failed:", err);
-        chrome.storage.local.set({
-          [`status_${domain}`]: `error_${err.message}`
-        });
-        pendingAnalyses.delete(domain);
-      });
-
+    startAnalysis(message.domain, message.links);
     sendResponse({ ok: true });
     return true;
   }

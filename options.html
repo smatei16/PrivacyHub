@@ -333,6 +333,28 @@
       </div>
     </div>
 
+    <!-- Privacy Policy Analysis -->
+    <div class="card">
+      <h2>Privacy Policy Analysis</h2>
+      <div class="setting-row">
+        <div class="setting-text">
+          <span class="setting-label">Automatically analyze privacy policies</span>
+          <p class="hint" style="margin:0">
+            By default, analysis only runs when you open the popup and press "Analyze Privacy
+            Policy". When enabled, PrivacyHub analyzes a site the first time you visit it, so
+            results are already waiting when you check — but it also means every new site you
+            visit uses your Claude API quota, not just ones you choose to check. A site is only
+            ever analyzed automatically once; if it previously failed, use the popup's Retry
+            button to try again. Requires a Claude API key above.
+          </p>
+        </div>
+        <label class="switch" title="Automatically analyze privacy policies">
+          <input type="checkbox" id="autoAnalyzeToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
     <!-- Breach Notifications -->
     <div class="card">
       <h2>Breach Notifications</h2>
@@ -429,6 +451,10 @@
         </li>
         <li>
           <span class="step-num">5</span>
+          <span>Turn on <strong>Automatically analyze privacy policies</strong> above to have step 3 run for you the first time you visit each site, instead of pressing the button yourself.</span>
+        </li>
+        <li>
+          <span class="step-num">6</span>
           <span>Turn on <strong>Notify me about data breaches</strong> above to get a browser notification for breaches on sites you visit, even without opening the popup.</span>
         </li>
       </ul>

@@ -9,6 +9,7 @@ const hibpSaveBtn      = document.getElementById("hibpSaveBtn");
 const hibpRemoveBtn    = document.getElementById("hibpRemoveBtn");
 const hibpKeyStatus    = document.getElementById("hibpKeyStatus");
 const autoRejectToggle     = document.getElementById("autoRejectToggle");
+const autoAnalyzeToggle    = document.getElementById("autoAnalyzeToggle");
 const breachNotifyToggle   = document.getElementById("breachNotifyToggle");
 const breachCooldownSelect = document.getElementById("breachCooldownSelect");
 const breachRecencySelect  = document.getElementById("breachRecencySelect");
@@ -18,12 +19,13 @@ const cacheStatus          = document.getElementById("cacheStatus");
 // ── Load existing keys and settings ─────────────────────────────────────────
 
 chrome.storage.local.get(
-  ["claudeApiKey", "hibpApiKey", "autoRejectCookies", "breachNotificationsEnabled",
-   "breachNotifyCooldown", "breachNotifyRecency"],
+  ["claudeApiKey", "hibpApiKey", "autoRejectCookies", "autoAnalyzeEnabled",
+   "breachNotificationsEnabled", "breachNotifyCooldown", "breachNotifyRecency"],
   (data) => {
     if (data.claudeApiKey)    apiKeyInput.value      = data.claudeApiKey;
     if (data.hibpApiKey)      hibpKeyInput.value     = data.hibpApiKey;
     autoRejectToggle.checked   = !!data.autoRejectCookies;
+    autoAnalyzeToggle.checked  = !!data.autoAnalyzeEnabled;         // off by default
     breachNotifyToggle.checked = !!data.breachNotificationsEnabled; // off by default
     breachCooldownSelect.value = data.breachNotifyCooldown || "7d";
     breachRecencySelect.value  = data.breachNotifyRecency || "any";
@@ -104,6 +106,12 @@ hibpRemoveBtn.addEventListener("click", () => {
 
 autoRejectToggle.addEventListener("change", () => {
   chrome.storage.local.set({ autoRejectCookies: autoRejectToggle.checked });
+});
+
+// ── Auto-analyze toggle ───────────────────────────────────────────────────────
+
+autoAnalyzeToggle.addEventListener("change", () => {
+  chrome.storage.local.set({ autoAnalyzeEnabled: autoAnalyzeToggle.checked });
 });
 
 // ── Breach notifications ─────────────────────────────────────────────────────
