@@ -212,20 +212,62 @@ async function callClaudeAPI(policyText) {
 
   const prompt = `Analyze the following privacy policy and/or terms of service text.
 
+The whole point of this analysis is to give a user something they'll actually
+read, instead of the wall of legal text below that they're skipping. Be
+ruthlessly concise — every field is shown as a short label or one-liner in a
+compact UI, not as prose the user has to work through.
+
 Return ONLY a valid JSON object with exactly this structure (no markdown, no code blocks):
 {
   "privacyScore": <integer 1-10>,
-  "collectedData": ["<specific data type>", ...],
-  "thirdParties": [
+  "collectedData": [
     {
-      "name": "<vendor name>",
-      "purpose": "<specific purpose>",
-      "dataTypes": ["<data shared>"]
+      "type": "<specific data type, 1-3 words>",
+      "conditional": <boolean — see rules below>,
+      "context": "<only if conditional: true, max 5 words>"
     }
   ],
-  "summary": "<2-3 sentence plain-language overview of key privacy practices>",
-  "concerns": ["<top concern 1>", "<top concern 2>", ...]
+  "thirdParties": [
+    {
+      "name": "<vendor name — see rules below>",
+      "purpose": "<specific purpose, max 4 words>",
+      "dataTypes": ["<data shared, 1-3 words each>"]
+    }
+  ],
+  "summary": "<ONE short plain-language sentence, max ~20 words, capturing the single most important takeaway>",
+  "concerns": ["<short phrase, max 6 words>", ...]
 }
+
+Rules for "summary": one sentence only, no semicolons stitching multiple
+clauses together. Say the one thing a user most needs to know, not a general
+overview.
+
+Rules for "concerns": at most 4 items, ordered most severe first. Each one is
+a short tag/label like "Sells data to advertisers" or "No deletion option" —
+NOT a full sentence or explanation. If there's nothing concerning, return an
+empty array rather than padding it with minor items.
+
+Rules for "collectedData": set "conditional": false for anything collected
+from any visitor just by using the site normally (email, IP address,
+cookies, device info). Set "conditional": true for anything the policy only
+mentions collecting when the user takes a specific optional action — applying
+for a job, creating an account, making a purchase, subscribing to a
+newsletter, contacting support, etc. — and NOT everyone who visits the site.
+For conditional items, "context" is a short trigger phrase (max 5 words, no
+"if"/"when" needed since the UI adds that) like "apply for a job" or "create
+an account". Don't inflate the unconditional list with things that only
+apply to a subset of users — a data point that's only ever collected during
+a job application must be marked conditional, not lumped in with data
+collected from every browsing visitor.
+
+Rules for "thirdParties.name": if the policy text names a specific company
+(e.g. "Google Analytics", "Meta", "Stripe"), use that exact name. If it only
+describes a vague category with no names given ("advertising partners",
+"analytics providers"), don't leave the user with just that label — keep the
+category but append 2-3 well-known real-world companies that typically fit
+it, clearly marked as illustrative: "Advertising partners (e.g. Google Ads,
+Meta, Amazon Ads)". Never present an illustrative example as if the policy
+actually named it.
 
 Privacy Score Guide:
 - 8-10: Minimal data collection, strong user rights (deletion/portability), transparent practices, no data selling, limited 3rd parties
@@ -287,10 +329,37 @@ function parseAndValidate(text) {
 
   // Normalize fields
   parsed.privacyScore   = Math.min(10, Math.max(1, Math.round(Number(parsed.privacyScore) || 5)));
-  parsed.collectedData  = Array.isArray(parsed.collectedData)  ? parsed.collectedData  : [];
+  parsed.collectedData  = normalizeCollectedData(parsed.collectedData);
   parsed.thirdParties   = Array.isArray(parsed.thirdParties)   ? parsed.thirdParties   : [];
   parsed.concerns       = Array.isArray(parsed.concerns)       ? parsed.concerns       : [];
   parsed.summary        = typeof parsed.summary === "string"   ? parsed.summary        : "";
 
   return parsed;
+}
+
+/**
+ * Normalizes "collectedData" into the `{ type, conditional, context }` shape
+ * the popup expects, tolerating anything Claude might actually send back:
+ * a bare string (treated as unconditional, matching the old pre-conditional
+ * schema), an object missing fields, or a non-boolean "conditional" value.
+ * Items that don't yield a usable "type" are dropped.
+ * @param {*} raw - The "collectedData" value from the parsed response.
+ * @returns {{type: string, conditional: boolean, context: string}[]}
+ */
+function normalizeCollectedData(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map(item => {
+      if (typeof item === "string") {
+        return { type: item, conditional: false, context: "" };
+      }
+      if (item && typeof item === "object") {
+        const type = typeof item.type === "string" ? item.type : "";
+        const conditional = item.conditional === true;
+        const context = conditional && typeof item.context === "string" ? item.context : "";
+        return { type, conditional, context };
+      }
+      return null;
+    })
+    .filter(item => item && item.type);
 }
