@@ -41,7 +41,7 @@ function scoreDescription(score) {
 /**
  * Renders `items` into `container` as chips, capped at `cap` visible items.
  * Any remainder is hidden behind a clickable/keyboard-activatable "+N more"
- * chip that, on activation, removes itself and reveals the rest in place —
+ * chip that, on activation, removes itself and reveals the rest in place -
  * so long lists (e.g. collectedData) don't overwhelm the popup by default
  * but everything stays reachable.
  * @param {HTMLElement} container - <ul>/<ol> to fill.
@@ -93,7 +93,7 @@ function renderExpandableChips(container, items, cap, chipClass = "chip") {
  * background.js already normalizes fresh analyses into this shape before
  * caching, but a result can also come straight from `analysis_<domain>`
  * storage written by an older version of the extension, where each entry
- * was a plain string with no conditional/context concept at all — that case
+ * was a plain string with no conditional/context concept at all - that case
  * is treated as unconditional data, matching the old behavior.
  * @param {string|object} item - Raw entry from `result.collectedData`.
  * @returns {{type: string, conditional: boolean, context: string}}
@@ -142,7 +142,7 @@ function renderResults(result) {
 
   // Concerns
   // Capped client-side at 4, mirroring the prompt instruction in
-  // background.js — kept here too as a fallback so a verbose response never
+  // background.js - kept here too as a fallback so a verbose response never
   // defeats the point of showing concerns as short, skimmable chips. Any
   // extra concerns are still reachable via the expandable "+N more" chip.
   const concernsList = document.getElementById("concernsList");
@@ -156,7 +156,7 @@ function renderResults(result) {
 
   // Data collected
   // Split into data collected from every visitor ("unconditional") vs. data
-  // the policy only mentions for a specific optional action — job
+  // the policy only mentions for a specific optional action - job
   // applications, account signup, etc. ("conditional", see background.js's
   // prompt rules). Showing both in one flat list overstates what a plain
   // visitor is actually exposed to, so conditional items are collapsed
@@ -199,8 +199,8 @@ function renderResults(result) {
       conditionalList.classList.remove("hidden");
       conditionalToggle.classList.add("hidden");
     };
-    // Assigned (not addEventListener) so a later renderResults() call — e.g.
-    // after re-analyzing — replaces the previous handler instead of
+    // Assigned (not addEventListener) so a later renderResults() call - e.g.
+    // after re-analyzing - replaces the previous handler instead of
     // stacking a second one on this persistent DOM element.
     conditionalToggle.onclick = revealConditional;
   }
@@ -222,6 +222,32 @@ function renderResults(result) {
       `;
       vendorList.appendChild(li);
     });
+  }
+
+  // Delete your data
+  // "contact" (if present) is only ever a literal email or URL Claude found
+  // in the policy text itself (see the prompt rules) - never fabricated -
+  // so it's safe to turn straight into a mailto:/link without further checks
+  // beyond telling the two apart for the link's own href/label.
+  const deletion = result.dataDeletion || {
+    method: "not_specified",
+    instructions: "Not addressed in this policy - check account settings or contact support.",
+    contact: ""
+  };
+  document.getElementById("deletionInstructions").textContent = deletion.instructions;
+
+  const deletionLink = document.getElementById("deletionContactLink");
+  const contact = deletion.contact || "";
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) {
+    deletionLink.href = `mailto:${contact}`;
+    deletionLink.textContent = contact;
+    deletionLink.classList.remove("hidden");
+  } else if (/^https?:\/\//i.test(contact)) {
+    deletionLink.href = contact;
+    deletionLink.textContent = "Open deletion request page";
+    deletionLink.classList.remove("hidden");
+  } else {
+    deletionLink.classList.add("hidden");
   }
 
   showState("stateResults");
@@ -394,7 +420,7 @@ function renderHIBP(breaches) {
   document.getElementById("hibpAlert").className = `hibp-alert hibp-alert--${sev}`;
 
   const titles = {
-    critical: `${count} breach${plural} found — recent`,
+    critical: `${count} breach${plural} found - recent`,
     warning:  `${count} breach${plural} found`,
     old:      `${count} old breach${plural} found`
   };
@@ -480,7 +506,7 @@ function checkHIBP() {
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const tab = tabs[0];
   if (!tab?.url || /^(chrome|edge|about|data):/.test(tab.url)) {
-    document.getElementById("domainText").textContent = "—";
+    document.getElementById("domainText").textContent = "-";
     showState("stateNone");
     return;
   }

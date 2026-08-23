@@ -7,7 +7,7 @@
  * button", and the id/class/domain fingerprints used to confirm a matched
  * button actually sits inside something that looks like a cookie banner.
  *
- * No logic lives here — just constants — so new languages or phrases can be
+ * No logic lives here - just constants - so new languages or phrases can be
  * added without touching the matching engine in cookie-consent.js. Must be
  * loaded before cookie-consent.js (see manifest.json's content_scripts
  * order); policy-detection.js doesn't use any of this.
@@ -15,8 +15,8 @@
 
 /**
  * Anything that might act as a clickable consent control. Includes
- * input[type=submit] because some real-world buttons — Google's own
- * full-page cookie prompt among them — use <input> rather than <button>/<a>.
+ * input[type=submit] because some real-world buttons - Google's own
+ * full-page cookie prompt among them - use <input> rather than <button>/<a>.
  */
 const CLICKABLE_SELECTOR = "button, [role='button'], input[type='button'], input[type='submit'], a";
 
@@ -26,14 +26,14 @@ const CLICKABLE_SELECTOR = "button, [role='button'], input[type='button'], input
  * tiers in order and takes the best match found anywhere on the page.
  *
  *  - Tier 0: unambiguous full-reject phrases ("reject all cookies").
- *  - Tier 1: "necessary/essential only" phrases — functionally a reject of
+ *  - Tier 1: "necessary/essential only" phrases - functionally a reject of
  *    everything but strictly-required cookies.
- *  - Tier 2: generic single words ("reject", "decline") — matched by exact
+ *  - Tier 2: generic single words ("reject", "decline") - matched by exact
  *    equality only (see findBestRejectButton), since as loose substrings
  *    they'd false-positive on unrelated UI far too easily.
  *
  * Tiers 0 and 1 are matched with .includes() rather than a stricter
- * startsWith/exact check — they're specific multi-word phrases, so matching
+ * startsWith/exact check - they're specific multi-word phrases, so matching
  * them as a substring (not just a prefix) catches real buttons that wrap
  * the phrase in extra text (icons, aria-label leftovers, a leading emoji)
  * without meaningfully raising the false-positive risk.
@@ -51,7 +51,7 @@ const REJECT_TIERS = [
     "alle cookies ablehnen", "alle ablehnen", "alles ablehnen", "cookies ablehnen",
     // Spanish
     "rechazar todas las cookies", "rechazar todo", "rechazar todas", "rechazar cookies",
-    // Romanian — infinitive/short forms ("Refuza tot") and formal imperative
+    // Romanian - infinitive/short forms ("Refuza tot") and formal imperative
     // plural forms ("Respingeți toate", common on buttons phrased as a request
     // to the user, e.g. OneTrust's Romanian preference-center translation)
     "refuza toate cookie-urile", "refuza tot", "respinge tot", "refuza toate",
@@ -88,7 +88,7 @@ const REJECT_TIERS = [
     "somente cookies necessários", "aceitar apenas necessários"
   ],
   [
-    // English — exact match only for single words
+    // English - exact match only for single words
     "reject", "refuse", "decline",
     // French
     "refuser", "rejeter",
@@ -129,13 +129,13 @@ const CONSENT_SIGNALS = [
  * notgoogle.com) since "google." must be preceded by the string start or a
  * literal dot. Used to scope a more permissive container-detection fallback
  * (see isInsideConsentContainer in cookie-consent.js) to Google's own
- * domains only — Google's cookie prompts carry no CMP-style container
+ * domains only - Google's cookie prompts carry no CMP-style container
  * signal at all, unlike virtually every third-party CMP.
  */
 const GOOGLE_DOMAIN_RE = /(^|\.)google\.[a-z.]+$/i;
 
 /**
- * "Manage/customize preferences" phrases — the escape hatch some CMPs put
+ * "Manage/customize preferences" phrases - the escape hatch some CMPs put
  * in place of an on-banner reject option, requiring one more click to reach
  * a real "Reject All" inside a preferences panel (this project's original
  * OneTrust test case worked this way). Used two ways in cookie-consent.js:
@@ -163,7 +163,7 @@ const MANAGE_KEYWORDS = [
 /**
  * Neutral, non-committal acknowledgment wording ("OK", "Got it", "Close").
  * Preferred by findAcknowledgeButton() over "Accept"-flavored wording when
- * a pure-notice banner offers more than one acknowledgment button —
+ * a pure-notice banner offers more than one acknowledgment button -
  * clicking either has the same effect since there's no real choice being
  * made, but "close"/"got it" reads less like an affirmative privacy
  * decision than "accept".
@@ -180,7 +180,7 @@ const NEUTRAL_ACK_WORDS = [
 /**
  * Full acknowledgment-button vocabulary (NEUTRAL_ACK_WORDS plus explicit
  * "Accept"-style wording). Matched by exact equality only in
- * findAcknowledgeButton() — unlike REJECT_TIERS' looser substring matching,
+ * findAcknowledgeButton() - unlike REJECT_TIERS' looser substring matching,
  * a false positive here means clicking "Accept" and granting full tracking
  * consent, so this stays deliberately conservative.
  */

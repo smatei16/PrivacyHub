@@ -2,13 +2,13 @@
  * cookie-consent.js
  * ────────────────────────────────────────────────────────────────────────
  * Detects cookie/GDPR consent banners and, when the user has enabled
- * auto-reject in Options, automatically resolves them — preferring a real
+ * auto-reject in Options, automatically resolves them - preferring a real
  * "Reject All" (or "Necessary Only"), opening a "Manage preferences" panel
  * to find one if it's not on the initial banner, and as a last resort
  * dismissing pure-notice banners that offer no way to decline at all.
  *
  * Runs in every frame (manifest.json: all_frames), unlike
- * policy-detection.js — a cookie banner rendered inside a cross-origin CMP
+ * policy-detection.js - a cookie banner rendered inside a cross-origin CMP
  * iframe (Sourcepoint, Quantcast Choice, ...) is only reachable if this
  * script runs there too.
  *
@@ -20,7 +20,7 @@
 
 /**
  * Reads a clickable element's effective label. Plain <button>/<a> elements
- * carry it in textContent, but <input> elements never do — their label
+ * carry it in textContent, but <input> elements never do - their label
  * lives in `value` (or, for accessibility, `aria-label`). Icon-only buttons
  * on other sites often skip visible text entirely and rely on aria-label
  * too, so falling back to those keeps every matcher below working on
@@ -37,7 +37,7 @@ function getButtonLabel(el) {
 
 /**
  * Builds a CSS selector that identifies `el` well enough for bookkeeping
- * (the SAVE_COOKIE_CHOICE record) — not guaranteed unique, and never used
+ * (the SAVE_COOKIE_CHOICE record) - not guaranteed unique, and never used
  * to re-locate and re-click the element later; it's purely a human-readable
  * trace of "this is roughly what got clicked".
  * @param {Element|null} el
@@ -62,7 +62,7 @@ function generateUniqueSelector(el) {
  * the popup which buttons look like consent controls (COOKIE_BANNER_DETECTED,
  * below) and recognizing a user's own manual click on one (see the click
  * listener below) so their choice gets remembered too. Uses a broader,
- * unscoped keyword list than the auto-reject engine further down —
+ * unscoped keyword list than the auto-reject engine further down -
  * deliberately, since a false *detection* here is harmless, whereas a false
  * *auto-click* isn't (that's what isInsideConsentContainer, further down,
  * guards against for the auto-reject path).
@@ -104,7 +104,7 @@ function findConsentButtonsByText() {
 
 // ── Bootstrap: ask background whether this domain already has a saved choice ──
 //
-// If it does, we're done — GET_COOKIE_CHOICE's domain is resolved from
+// If it does, we're done - GET_COOKIE_CHOICE's domain is resolved from
 // sender.tab.url in background.js, so this correctly checks the *site's*
 // saved choice even when this particular frame is a cross-origin CMP
 // iframe. Otherwise, report any consent-looking buttons found (for the
@@ -132,7 +132,7 @@ document.addEventListener("click", function(e) {
   // Guard against false positives: the loose keyword list above matches plenty
   // of ordinary site UI ("Settings", "Accept", "Agree", ...). Only persist the
   // click as "the" cookie choice for this domain if it actually happened inside
-  // a cookie/consent banner — otherwise an unrelated click permanently disables
+  // a cookie/consent banner - otherwise an unrelated click permanently disables
   // auto-reject for the domain (GET_COOKIE_CHOICE would return a stale choice
   // and tryAutoReject() would never run again).
   if (match && isInsideConsentContainer(e.target)) {
@@ -166,7 +166,7 @@ function isVisible(el) {
  * consent-related word in an ancestor's id/class/aria-label (CONSENT_SIGNALS),
  * or an ARIA dialog/alertdialog/region role whose own text mentions
  * cookies/GDPR/consent. No extra depth cap on the role check beyond the
- * walk's own limit — a real ARIA dialog role combined with cookie-related
+ * walk's own limit - a real ARIA dialog role combined with cookie-related
  * text is specific enough on its own that ignoring it past a few levels
  * only creates false negatives (Google's own cookie dialog, for example,
  * wraps its buttons 7 levels deep).
@@ -203,7 +203,7 @@ function findConsentContainer(el) {
  *
  * Tries findConsentContainer() first. Failing that, Google's own domains
  * (GOOGLE_DOMAIN_RE) get a more permissive fallback: Google's cookie
- * prompts carry no CMP-style container signal at all — plain markup with
+ * prompts carry no CMP-style container signal at all - plain markup with
  * generic class names, no dialog role on the full-page prompt since the
  * whole page *is* the prompt, and buttons that are sometimes <input
  * value="..."> elements whose value never shows up in any ancestor's
@@ -245,7 +245,7 @@ function isInsideConsentContainer(el) {
 
 /**
  * Scans every visible clickable element on the page and returns the single
- * best "Reject All" / "Necessary Only" candidate — the one matching the
+ * best "Reject All" / "Necessary Only" candidate - the one matching the
  * highest-confidence REJECT_TIERS entry among those that also pass
  * isInsideConsentContainer(). Returns null if nothing qualifies.
  * @returns {Element|null}
@@ -283,25 +283,25 @@ function findBestRejectButton() {
 
 // ── Notice-only banners (no reject option offered) ───────────────────────
 //
-// Some banners — common on government/university/institutional sites — only
+// Some banners - common on government/university/institutional sites - only
 // inform you that cookies are used and offer a single acknowledgment button
 // ("OK", "Accept", "Got it", ...) with no way to decline. There's no privacy
 // choice being given up by dismissing these, so it's worth clearing them out
 // of the way too. We only do this when findBestRejectButton() has already
-// failed AND the banner has no "Manage/Customize/Preferences" escape hatch —
+// failed AND the banner has no "Manage/Customize/Preferences" escape hatch -
 // if one exists, a real reject option may be one click deeper, so we leave it
 // alone rather than risk silently accepting full tracking.
 
 /**
  * Finds a genuine acknowledgment-only button to dismiss a pure-notice
- * banner with — one that offers no way to decline at all. Only called
+ * banner with - one that offers no way to decline at all. Only called
  * after findBestRejectButton() and findManageButton() have both already
  * failed to find anything to click.
  *
  * Groups candidates by the consent container they belong to (so a "Manage
  * preferences" link in one banner can't block dismissal of an unrelated
  * banner elsewhere on the page), and skips any container that also has a
- * manage/customize escape hatch — a real reject option may be one click
+ * manage/customize escape hatch - a real reject option may be one click
  * deeper there, so it's left alone rather than silently accepted.
  * @returns {Element|null}
  */
@@ -330,7 +330,7 @@ function findAcknowledgeButton() {
   }
 
   for (const entry of containers.values()) {
-    if (entry.hasManage || entry.ackEls.length === 0) continue; // escape hatch to a real choice — leave it alone
+    if (entry.hasManage || entry.ackEls.length === 0) continue; // escape hatch to a real choice - leave it alone
     const neutral = entry.ackEls.find(el => NEUTRAL_ACK_WORDS.includes(getButtonLabel(el).toLowerCase()));
     return neutral || entry.ackEls[0];
   }
@@ -341,7 +341,7 @@ function findAcknowledgeButton() {
 /**
  * Finds a "Manage/Customize preferences" link inside a consent container.
  * Some CMPs (this project's original OneTrust test case among them) only
- * expose "Reject All" one click deeper, inside the panel that link opens —
+ * expose "Reject All" one click deeper, inside the panel that link opens -
  * the initial banner offers only Accept and this link. tryAutoReject()
  * clicks it once and then re-scans for a real reject button once the
  * panel's contents land in the DOM.
@@ -386,11 +386,11 @@ function debounce(fn, ms) {
  * seconds, to catch banners that render asynchronously):
  *   1. Try to find and click a real reject button (findBestRejectButton).
  *   2. Failing that, and only once, try opening a "Manage preferences"
- *      panel (findManageButton) — the mutation this triggers feeds back
+ *      panel (findManageButton) - the mutation this triggers feeds back
  *      into step 1 on the next attempt, since the panel may reveal a real
  *      reject button.
  *   3. Failing that too, dismiss a pure-notice banner if one is found
- *      (findAcknowledgeButton) — there's nothing privacy-preserving to
+ *      (findAcknowledgeButton) - there's nothing privacy-preserving to
  *      lose if no decline path was ever offered.
  *
  * Whichever button ends up clicked, the choice is reported to
@@ -425,7 +425,7 @@ function tryAutoReject() {
 
       // No reject button visible yet. Many CMPs (OneTrust among them) only
       // expose "Reject All" inside a "Manage/Customize preferences" panel,
-      // not on the initial banner. Open it once and keep watching — the
+      // not on the initial banner. Open it once and keep watching - the
       // MutationObserver below will re-run this function when the panel's
       // contents land in the DOM, and the reject-button search above will
       // then have something to find.
@@ -434,12 +434,12 @@ function tryAutoReject() {
         if (manageBtn) {
           manageClicked = true;
           manageBtn.click();
-          return; // don't disconnect — stay watching for the panel to open
+          return; // don't disconnect - stay watching for the panel to open
         }
       }
 
       // Still nothing: no reject button, and no (further) manage panel to
-      // try. If it's a pure notice — no decline path at all — dismiss it
+      // try. If it's a pure notice - no decline path at all - dismiss it
       // instead, since there's nothing privacy-preserving to lose.
       const ackBtn = findAcknowledgeButton();
       if (!ackBtn) return;

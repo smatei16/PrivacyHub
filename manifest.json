@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PrivacyHub",
-  "version": "4.2",
+  "version": "5.0",
   "description": "Analyzes website privacy policies using Claude AI and rates them with a privacy score.",
   "permissions": ["scripting", "activeTab", "storage", "notifications"],
   "background": {
