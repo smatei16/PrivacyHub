@@ -32,7 +32,7 @@ chrome.storage.local.get(
   }
 );
 
-// ── Claude key — toggle visibility ──────────────────────────────────────────
+// ── Claude key - toggle visibility ──────────────────────────────────────────
 
 toggleVisBtn.addEventListener("click", () => {
   const isPassword = apiKeyInput.type === "password";
@@ -40,7 +40,7 @@ toggleVisBtn.addEventListener("click", () => {
   toggleVisBtn.textContent = isPassword ? "🙈" : "👁";
 });
 
-// ── Claude key — save ────────────────────────────────────────────────────────
+// ── Claude key - save ────────────────────────────────────────────────────────
 
 saveBtn.addEventListener("click", () => {
   const key = apiKeyInput.value.trim();
@@ -57,7 +57,7 @@ saveBtn.addEventListener("click", () => {
   });
 });
 
-// ── Claude key — remove ──────────────────────────────────────────────────────
+// ── Claude key - remove ──────────────────────────────────────────────────────
 
 removeKeyBtn.addEventListener("click", () => {
   apiKeyInput.value = "";
@@ -66,7 +66,7 @@ removeKeyBtn.addEventListener("click", () => {
   });
 });
 
-// ── HIBP key — toggle visibility ─────────────────────────────────────────────
+// ── HIBP key - toggle visibility ─────────────────────────────────────────────
 
 hibpToggleBtn.addEventListener("click", () => {
   const isPassword = hibpKeyInput.type === "password";
@@ -74,7 +74,7 @@ hibpToggleBtn.addEventListener("click", () => {
   hibpToggleBtn.textContent = isPassword ? "🙈" : "👁";
 });
 
-// ── HIBP key — save ──────────────────────────────────────────────────────────
+// ── HIBP key - save ──────────────────────────────────────────────────────────
 
 hibpSaveBtn.addEventListener("click", () => {
   const key = hibpKeyInput.value.trim();
@@ -85,7 +85,7 @@ hibpSaveBtn.addEventListener("click", () => {
   // HIBP keys are UUID-format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuidPattern.test(key)) {
-    flashStatus(hibpKeyStatus, "Key doesn't match the expected UUID format — double-check it and save anyway?", "error");
+    flashStatus(hibpKeyStatus, "Key doesn't match the expected UUID format - double-check it and save anyway?", "error");
     // Still allow saving in case the format changes; just warn.
   }
   chrome.storage.local.set({ hibpApiKey: key }, () => {
@@ -93,7 +93,7 @@ hibpSaveBtn.addEventListener("click", () => {
   });
 });
 
-// ── HIBP key — remove ────────────────────────────────────────────────────────
+// ── HIBP key - remove ────────────────────────────────────────────────────────
 
 hibpRemoveBtn.addEventListener("click", () => {
   hibpKeyInput.value = "";
@@ -135,7 +135,7 @@ clearCacheBtn.addEventListener("click", () => {
     const toRemove = Object.keys(allData).filter(k =>
       k.startsWith("analysis_") || k.startsWith("status_") ||
       k.startsWith("links_")    || k.startsWith("hibp_") ||
-      k.startsWith("hibpNotifiedAt_") // per-domain notification cooldowns — reset so freshly re-fetched breach data can notify right away instead of waiting out a stale cooldown
+      k.startsWith("hibpNotifiedAt_") // per-domain notification cooldowns - reset so freshly re-fetched breach data can notify right away instead of waiting out a stale cooldown
     );
     // Also reset remembered cookie-banner choices. A past false-positive match
     // (e.g. a "Settings" button unrelated to any cookie banner) could have

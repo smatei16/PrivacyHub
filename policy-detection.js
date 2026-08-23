@@ -4,7 +4,7 @@
  * Finds links to (or detects the current page as) a privacy policy or
  * terms-of-service page, so the popup/background pipeline can fetch and
  * analyze that text with Claude. Runs top-frame only (see isTopFrame below)
- * — a page's own privacy policy is a property of the page, not of whatever
+ * - a page's own privacy policy is a property of the page, not of whatever
  * ad/embed iframes happen to be on it.
  */
 
@@ -12,7 +12,7 @@
  * True only in the top-level frame of the tab, false inside any iframe.
  *
  * With all_frames enabled (manifest.json), this content script now also
- * runs inside every iframe on the page — including cross-origin
+ * runs inside every iframe on the page - including cross-origin
  * cookie-consent widgets (Sourcepoint, Quantcast Choice, etc.) that live in
  * their own frame and were previously unreachable. Policy/T&C link
  * detection below only makes sense for the page the user is actually
@@ -25,7 +25,7 @@ const isTopFrame = window.top === window.self;
 /**
  * True if the current page's own URL path looks like a privacy/terms page
  * (e.g. "/privacy-policy", "/terms-of-use") in any of the supported
- * languages — in which case the page itself, not a link on it, is what
+ * languages - in which case the page itself, not a link on it, is what
  * should get analyzed.
  * @returns {boolean}
  */

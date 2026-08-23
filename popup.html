@@ -138,6 +138,13 @@
           <ul class="vendor-list" id="vendorList"></ul>
         </section>
 
+        <!-- Delete your data -->
+        <section class="card" id="deletionCard">
+          <h3 class="card-label">How To Delete Your Data</h3>
+          <p class="deletion-instructions" id="deletionInstructions"></p>
+          <a class="btn btn-secondary deletion-contact hidden" id="deletionContactLink" target="_blank" rel="noopener noreferrer"></a>
+        </section>
+
         <div class="footer-actions">
           <button class="btn btn-ghost" id="reanalyzeBtn">Re-analyze</button>
         </div>
@@ -169,7 +176,7 @@
           <span class="hibp-inline-text" id="hibpErrorMsg">Could not check breach database.</span>
         </div>
 
-        <!-- Safe — no breaches -->
+        <!-- Safe - no breaches -->
         <div id="hibpSafe" class="hibp-safe-row hidden">
           <div class="hibp-indicator hibp-indicator--safe">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
